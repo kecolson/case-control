@@ -53,7 +53,8 @@ library(survival) # for clogit analysis
 
 # Set Working Directory
 # setwd("~/Documents/PhD/Fall 2017/GSR/Case Control Simulation/Raw Data") # Chris's directory
-setwd("C:/Users/kecolson/Google Drive/simulation/case-control") # Ellie's directory
+#setwd("C:/Users/kecolson/Google Drive/simulation/case-control") # Ellie's directory
+setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
 
 ########################
 # Create and Save Population Data
