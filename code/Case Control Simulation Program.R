@@ -11,6 +11,7 @@
 #          12/28/2017: EM cleaned up population generation; added function to apply the three basic
 #                      case-control designs with simple random sampling; wrapped the function in 
 #                      a test simulation loop. 
+#          01/02/2018: CL added bias, variance and MSE to test distribution of estimates
 ################################################################################################
 
 # PENDING QUESTIONS TO CHECK WITH JEN AND PATRICK
@@ -371,6 +372,17 @@ hist(results$est)
 results$CIcover <- as.numeric(results$lower<=2 & results$upper>=2)
 round(mean(results$CIcover, na.rm=T)*100,1)
 
+# Calculate Bias - average distance of point estimates away from true OR in repeated simulations
+bias <- mean(results$est - 2) #should assign trueOR, is currently in line 164 which gets skipped
+bias
+
+# Calculate Variance - variance of point estimate of repeated simulations
+variance <- var(results$est)
+variance
+
+# Calculate MSE - mean squared error of point estimate of repeated simulations
+MSE <- mean((results$est - 2)^2)
+MSE
 
 
 # END
