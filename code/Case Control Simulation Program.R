@@ -1,7 +1,7 @@
 ################################################################################################
 # NAME: Case Control Simulation Program
 # AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe
-# DATE STARTED: 12/15/2017
+# DATE STARTED: 12/15/2017    
 # PURPOSE: Produce an artifical population based on the 2010 California 
 #          American Community Survey data and conduct various case control simulations 
 #          to mimic selection of controls from external data sources with complex sampling methods.
