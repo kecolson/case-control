@@ -12,6 +12,7 @@
 #                      case-control designs with simple random sampling; wrapped the function in 
 #                      a test simulation loop. 
 #          01/02/2018: CL added bias, variance and MSE to test distribution of estimates
+#          01/16/2018: CR added simple probability and clustered sampling designs
 ################################################################################################
 
 # PENDING QUESTIONS TO CHECK WITH JEN AND PATRICK
@@ -51,11 +52,12 @@ library(readstata13)
 library(locfit) # for expit function
 library(Epi) # for case-cohort and density sampling designs
 library(survival) # for clogit analysis
+library(dplyr)
 
 # Set Working Directory
-# setwd("~/Documents/PhD/Fall 2017/GSR/Case Control Simulation/Raw Data") # Chris's directory
+setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
 #setwd("C:/Users/kecolson/Google Drive/simulation/case-control") # Ellie's directory
-setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+#setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
 
 ########################
 # Create and Save Population Data
@@ -224,7 +226,7 @@ pop <- read.csv("data/population.data.csv", stringsAsFactors = F)
 
 study <- function(seed, # random seed to make sampling replicable
                   cctype = "cumulative", # options will be "cumulative", "cch" for case-cohort, and "density" for density-sampled
-                  samp   = "srs", # sampling of controls. Options will be "srs" for simple random sample, and others TBD
+                  samp   = "srs", # sampling of controls. Options will be "srs" for simple random sample, "sps" for simple probability sample with know probability of selection for each individual, "clustered" for single stage clustered design using PUMAs
                   ratio = 1, # ratio of controsl to cases
                   data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
                   subcohort.size # size of subcohort for case-cohort design, if relevant
@@ -234,15 +236,34 @@ study <- function(seed, # random seed to make sampling replicable
   ####### PHASE 1: source of cases and controls -- SRS, complex survey, etc. 
   set.seed(seed)
   
-  allcases    <- data[data$Y==1,]
-  allcontrols <- data[data$Y==0,]
+  # Select cases and controls from testing subset
+  #allcases    <- data[data$Y==1,]
+  #allcontrols <- data[data$Y==0,]
+  
+  allcases    <- pop[pop$Y==1,]
+  allcontrols <- pop[pop$Y==0,]
   
   if (samp=="srs") { # simple random sample of controls
     
     control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, replace=F),] 
+  
+  } else if (samp=="sps") {  # simple probability sample of controls with known probability of selection for each individual
     
+    allcontrols$sampprob <- runif(nrow(allcontrols), 0, 1) # generate probability of being selected
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+
   } else if (samp=="clustered") {
-    
+
+    puma <- aggregate(data.frame(popsize = allcontrols$puma), list(puma = allcontrols$puma), length) # Calculate cluster (i.e. PUMA) population size to determine cluster sampling probability (proportional to cluster population size)
+    puma$cls.sampprob <- puma$popsize/nrow(allcontrols) # Calculate cluster sampling probability
+    puma.samp <- puma[sample(1:nrow(puma), size = 71, prob = puma$cls.sampprob, replace=F),] # Sample 71 clusters using cluster sampling probability
+    control.samp <- pop[pop$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(71)# Randomly sample 71 controls from each of the 71 selected clusters
+    control.samp <- merge(control.samp, puma.samp, by="puma") # Merge cluster characteristics with sampled controls
+    control.samp$sampprob <- 71/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 71 divided by cluster population size)
+    control.samp <- subset(control.samp, select = -popsize) # Remove unneeded column
+    control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
+    rm(puma,puma.samp) # Remove unneeded objects
+
   } else if (samp=="ACS") {
     
   } else if (samp=="NHANES") {
