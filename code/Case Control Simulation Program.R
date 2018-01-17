@@ -55,9 +55,9 @@ library(survival) # for clogit analysis
 library(dplyr)
 
 # Set Working Directory
-setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
+#setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
 #setwd("C:/Users/kecolson/Google Drive/simulation/case-control") # Ellie's directory
-#setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
 
 ########################
 # Create and Save Population Data
@@ -194,6 +194,11 @@ pop$Y <- rbinom(N, size = 1, prob = expit(baseline_Y +
 mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
 summary(mod)
 exp(coef(mod))
+
+# Check for presence of confounding in total population
+crude_mod <- glm(Y ~ A, data = pop, family = "binomial")
+summary(crude_mod)
+exp(coef(crude_mod)) # OR = 2.0774 vs. true OR in pop of 1.9986, is this enough or should we try to make it more confounded?
 
 # Generate Case Occurrence/Censoring Time Variable (10 Years of Follow-Up, Measured in Days)
 set.seed(4)
