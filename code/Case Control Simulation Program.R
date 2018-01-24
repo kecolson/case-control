@@ -13,6 +13,8 @@
 #                      a test simulation loop. 
 #          01/02/2018: CL added bias, variance and MSE to test distribution of estimates
 #          01/16/2018: CR added simple probability and clustered sampling designs
+#          01/17/2018: CL added crude OR calcuation for total population, true OR, CIR, and IDR values
+#                      for the total population
 ################################################################################################
 
 # PENDING QUESTIONS TO CHECK WITH JEN AND PATRICK
@@ -53,6 +55,7 @@ library(locfit) # for expit function
 library(Epi) # for case-cohort and density sampling designs
 library(survival) # for clogit analysis
 library(dplyr)
+library(MASS) # for negative binomial models
 
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
@@ -138,6 +141,10 @@ pop <- pop[,c('cluster','strata','serial', # Survey design variables: HH cluster
               'age_u18','age_18_24','age_25_34','age_35_44','age_45_54','age_55_64','age_over64',
               'educ_ged','educ_hs','educ_somecollege','educ_associates','educ_bachelors','educ_advdegree')]
 
+# Generate Time (X)
+set.seed(20)
+pop$X <- runif(sum(pop$Y), 0, 365.25*10)
+
 # Generate Exposure - Socio-Demographic Patterns Loosely Based on Cigarette Smoking in U.S. (https://www.cdc.gov/tobacco/campaign/tips/resources/data/cigarette-smoking-in-united-states.html)
 baseline_A <- log(0.5)
 set.seed(2)
@@ -221,6 +228,20 @@ rm(list=setdiff(ls(), "pop")) # clear everything except population data
 
 # Bring in data
 pop <- read.csv("data/population.data.csv", stringsAsFactors = F)
+
+# Calculate True OR, CIR, and IDR for total population
+trueOR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
+trueOR <- as.numeric(exp(coef(trueOR_mod)["A"]))
+
+trueCIR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson') # negative binomial model returned 1.894534
+trueCIR <- as.numeric(exp(coef(trueCIR_mod)["A"]))
+
+trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
+trueIDR <- as.numeric(exp(coef(trueIDR_mod)["A"]))
+
+#trueIDR_mod.nb <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop)
+#trueIDR.nb <- as.numeric(exp(coef(trueIDR_mod.nb)["A"]))
+# error with nb model: alternation limit reached/did not converge
 
 # Sample down the dataset for testing purposes
 #data <- pop[sample(1:nrow(pop), 4000, replace=F),]
