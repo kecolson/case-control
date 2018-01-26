@@ -1,6 +1,6 @@
 ################################################################################################
 # NAME: Case Control Simulation: Adjusting Outcome and Time Mechanism
-# AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe
+# AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe*
 # DATE STARTED: 01/22/2018    
 # PURPOSE: To play around with exposure and outcome mechanism, and confounding in "true" population
 # UPDATES: 01/22/2018: CL adapted code from main Case Control Simulation Program to play around 
