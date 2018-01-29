@@ -56,6 +56,7 @@ library(Epi) # for case-cohort and density sampling designs
 library(survival) # for clogit analysis
 library(dplyr)
 library(MASS) # for negative binomial models
+library(AER) # for disperion test
 
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
@@ -230,15 +231,25 @@ rm(list=setdiff(ls(), "pop")) # clear everything except population data
 pop <- read.csv("data/population.data.csv", stringsAsFactors = F)
 
 # Calculate True OR, CIR, and IDR for total population
+# OR calculated using logistic regression model
 trueOR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
 trueOR <- as.numeric(exp(coef(trueOR_mod)["A"]))
 
-trueCIR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson') # negative binomial model returned 1.894534
-trueCIR <- as.numeric(exp(coef(trueCIR_mod)["A"]))
+# CIR calculated using log binomial model
+trueCIR_lbmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family= binomial(log))
+trueCIR_lb <- as.numeric(exp(coef(trueCIR_lbmod)["A"]))
 
+# CIR caluclated using poisson model
+trueCIR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson') # negative binomial model returned 1.894534
+trueCIR_p <- as.numeric(exp(coef(trueCIR_pmod)["A"]))
+dispersiontest(trueCIR_pmod) #shows overdispersed
+
+# IDR calculated using poisson model with case occurrence offset
 trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
 trueIDR <- as.numeric(exp(coef(trueIDR_mod)["A"]))
+dispersiontest(trueIDR_mod) #shows overdispersed
 
+# IDR calculated using negative binomial model
 #trueIDR_mod.nb <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop)
 #trueIDR.nb <- as.numeric(exp(coef(trueIDR_mod.nb)["A"]))
 # error with nb model: alternation limit reached/did not converge

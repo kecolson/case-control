@@ -105,8 +105,12 @@ trueOR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age
 trueOR <- as.numeric(exp(coef(trueOR_mod)["A"])); trueOR
 
 # True Cumulative Incidence Ratio in total population
-trueCIR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson') # negative binomial model returned 1.894534
-trueCIR <- as.numeric(exp(coef(trueCIR_mod)["A"])); trueCIR
+# log binomial model
+trueCIR_lbmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family=binomial(log))
+trueCIR_lb <- as.numeric(exp(coef(trueCIR_lbmod)["A"])); trueCIR_lb
+# poisson model
+trueCIR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson')
+trueCIR_p <- as.numeric(exp(coef(trueCIR_pmod)["A"])); trueCIR_p
 
 # True Incidence Density Raio in total population
 trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(X), data=pop, family='poisson')
