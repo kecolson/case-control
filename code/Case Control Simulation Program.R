@@ -18,6 +18,9 @@
 #          01/31/2018: CL added code to look at dispersion
 #          02/05/2018: CL changed total population so that only those aged 18 or older subset from ACS,
 #                      changed code throughout to reflect this change (18-24 now reference group)
+#          02/06/2018: CR added second cluster design, calculated sampling weights for each design, 
+#                      and incorporated weights into cumulative case control and incidence density 
+#                      sampling analyses.
 ################################################################################################
 
 # PENDING QUESTIONS TO CHECK WITH JEN AND PATRICK
@@ -64,9 +67,9 @@ library(AER) # for dispersion test https://www.rdocumentation.org/packages/AER/v
 library(pscl) 
 
 # Set Working Directory
-#setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
+setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
 #setwd("C:/Users/kecolson/Google Drive/simulation/case-control") # Ellie's directory
-setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+#setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
 
 ########################
 # Create and Save Population Data
@@ -269,13 +272,16 @@ pchisq(2 * (logLik(trueIDR_mod) - logLik(trueIDR_mod.nb)), df = 1, lower.tail = 
 # Sample down the dataset for testing purposes
 #data <- pop[sample(1:nrow(pop), 4000, replace=F),]
 
+# Full dataset for testing purposes
+data <- pop
+
 ####
 # Create a function that will apply the different study designs and analyses
 ####
 
 study <- function(seed, # random seed to make sampling replicable
                   cctype = "cumulative", # options will be "cumulative", "cch" for case-cohort, and "density" for density-sampled
-                  samp   = "srs", # sampling of controls. Options will be "srs" for simple random sample, "sps" for simple probability sample with know probability of selection for each individual, "clustered" for single stage clustered design using PUMAs
+                  samp   = "srs", # sampling of controls. Options will be "srs" for simple random sample, "sps" for simple probability sample with know probability of selection for each individual, "clustered1" for single stage clustered design, "clustered2" for two-stage clustered design 
                   ratio = 1, # ratio of controsl to cases
                   data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
                   subcohort.size # size of subcohort for case-cohort design, if relevant
@@ -285,31 +291,48 @@ study <- function(seed, # random seed to make sampling replicable
   ####### PHASE 1: source of cases and controls -- SRS, complex survey, etc. 
   set.seed(seed)
   
-  # Select cases and controls from testing subset
-  #allcases    <- data[data$Y==1,]
-  #allcontrols <- data[data$Y==0,]
-  
-  allcases    <- pop[pop$Y==1,]
-  allcontrols <- pop[pop$Y==0,]
+  # Select cases and controls
+  allcases    <- data[data$Y==1,]
+  allcontrols <- data[data$Y==0,]
+
+  # Create Case Weights
+  allcases$sampweight <- 1
   
   if (samp=="srs") { # simple random sample of controls
     
     control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, replace=F),] 
-  
+    control.samp$sampweight <- 1
+    
   } else if (samp=="sps") {  # simple probability sample of controls with known probability of selection for each individual
     
     allcontrols$sampprob <- runif(nrow(allcontrols), 0, 1) # generate probability of being selected
     control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
-
-  } else if (samp=="clustered") {
+    control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
+    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+ 
+  } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.    
+       
+    cluster <- aggregate(data.frame(popsize = allcontrols$cluster), list(cluster = allcontrols$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
+    cluster$cls.sampprob <- cluster$popsize/nrow(allcontrols) # Calculate cluster sampling probability
+    cluster.samp <- cluster[sample(1:nrow(cluster), size = round((nrow(allcases)*ratio/mean(table(data$cluster)))/2,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
+    control.samp <- allcontrols[allcontrols$cluster %in% cluster.samp[,"cluster"],] # Sample all controls from each of the randomly sampled clusters
+    control.samp <- merge(control.samp, cluster.samp, by="cluster") # Merge cluster characteristics with sampled controls
+    control.samp$sampweight <- 1/(control.samp$cls.sampprob) # Calculate sampling weight
+    control.samp <- subset(control.samp, select = -c(popsize, cls.sampprob)) # Remove unneeded column
+    control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
+    rm(cluster,cluster.samp) # Remove unneeded objects      
+    
+  } else if (samp=="clustered2") { # two stage cluster design in which cluster are sampled and individuals are sampled from within selected clusters.
 
     puma <- aggregate(data.frame(popsize = allcontrols$puma), list(puma = allcontrols$puma), length) # Calculate cluster (i.e. PUMA) population size to determine cluster sampling probability (proportional to cluster population size)
     puma$cls.sampprob <- puma$popsize/nrow(allcontrols) # Calculate cluster sampling probability
-    puma.samp <- puma[sample(1:nrow(puma), size = 71, prob = puma$cls.sampprob, replace=F),] # Sample 71 clusters using cluster sampling probability
-    control.samp <- pop[pop$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(71)# Randomly sample 71 controls from each of the 71 selected clusters
+    puma.samp <- puma[sample(1:nrow(puma), size = 150, prob = puma$cls.sampprob, replace=F),] # Sample 150 clusters using cluster sampling probability
+    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(150)# Randomly sample 150 controls from each of the 150 selected clusters
     control.samp <- merge(control.samp, puma.samp, by="puma") # Merge cluster characteristics with sampled controls
-    control.samp$sampprob <- 71/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 71 divided by cluster population size)
-    control.samp <- subset(control.samp, select = -popsize) # Remove unneeded column
+    control.samp$sampprob <- 150/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)
+    control.samp$sampweight <- 1/(control.samp$cls.sampprob*control.samp$sampprob) # Calculate Sampling Weight
+    control.samp <- subset(control.samp, select = -c(popsize,cls.sampprob, sampprob)) # Remove unneeded columns
     control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
     rm(puma,puma.samp) # Remove unneeded objects
 
@@ -330,7 +353,7 @@ study <- function(seed, # random seed to make sampling replicable
     
     # Run model
     mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
-               data=sample, family='binomial')
+               data=sample, family='binomial', weights = sampweight)
     
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[2])
@@ -368,14 +391,15 @@ study <- function(seed, # random seed to make sampling replicable
   } else if (cctype=="density") {
     
     # Apply design
+    presample <- rbind(allcases, control.samp) 
     sample <- ccwc(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
                    #match=list(), # use this argument for variables we want to match on
       include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                    age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                   educ_associates,educ_bachelors,educ_advdegree), data=data, silent=FALSE)
+                   educ_associates,educ_bachelors,educ_advdegree,sampweight), data=presample, silent=FALSE)
     
     # Run model
-    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + strata(Set), data = sample)
+    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + strata(Set), data = sample, weights = sampweight, method = "efron")
 
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[1])
