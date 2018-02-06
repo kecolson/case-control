@@ -15,6 +15,9 @@
 #          01/16/2018: CR added simple probability and clustered sampling designs
 #          01/17/2018: CL added crude OR calcuation for total population, true OR, CIR, and IDR values
 #                      for the total population
+#          01/31/2018: CL added code to look at dispersion
+#          02/05/2018: CL changed total population so that only those aged 18 or older subset from ACS,
+#                      changed code throughout to reflect this change (18-24 now reference group)
 ################################################################################################
 
 # PENDING QUESTIONS TO CHECK WITH JEN AND PATRICK
@@ -25,6 +28,7 @@
 
 # NEXT STEPS 
   # Continue to develop and test sampling and analysis part of code for the three different types of case control designs (cumulative, case-cohort, density-sampled), with controls drawn randomly from the population. Confirm that each of these designs recovers the parameter/quantity we expect.
+  # Work on updating function so it can take in different exposure frequencies (different values of Y)
 
 # QUESTIONS FOR US TO DISCUSS AT OUR NEXT MEETING
   # In the case-cohort design, the controls are not sampled separately from the cases. Rather, you sample from a baseline cohort irrespective of later case/control status. Think more about whether the case-cohort design is relevant to what we're doing and if so, how it would mesh with the concept of drawing controls from complex surveys. 
@@ -56,7 +60,7 @@ library(Epi) # for case-cohort and density sampling designs
 library(survival) # for clogit analysis
 library(dplyr)
 library(MASS) # for negative binomial models
-library(AER) # for disperion test
+library(AER) # for dispersion test https://www.rdocumentation.org/packages/AER/versions/1.2-5/topics/dispersiontest
 
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
@@ -73,7 +77,7 @@ if (1==2) { # Use to skip over this section after we've run it for the first tim
 raw <- read.dta13("data/usa_00005_10_13.dta")
 
 # Subset Data - Relevant Variables and Single Year (2010)
-data <- raw[raw$year==2010, 
+data <- raw[raw$year==2010 & as.numeric(raw$age) >= 18, # Year 2010 and age 18 or older only
              c('cluster','strata','serial','perwt',   # Survey design variables: HH cluster, HH strata, HH serial #, person weight
                'county','city','puma','cpuma0010',    # Geographic identifiers
                'sex','age','educd','race','hispan')]  # Individual-level covariates
@@ -114,7 +118,7 @@ pop <- fulldata[sample(1:nrow(fulldata), size=N, replace=F),]
 
   # Age (Seven Categories: Under 18; 18-24; 25-34; 35-44; 45-54; 55-64; 65 and older)
   pop$agenum <- as.numeric(pop$age)
-  pop$age_u18   <- ifelse(pop$agenum<18,1,0)
+  #pop$age_u18   <- ifelse(pop$agenum<18,1,0)
   pop$age_18_24 <- ifelse(pop$agenum>=18 & pop$agenum<=24,1,0)
   pop$age_25_34 <- ifelse(pop$agenum>=25 & pop$agenum<=34,1,0)
   pop$age_35_44 <- ifelse(pop$agenum>=35 & pop$agenum<=44,1,0)
@@ -139,79 +143,78 @@ pop <- fulldata[sample(1:nrow(fulldata), size=N, replace=F),]
 pop <- pop[,c('cluster','strata','serial', # Survey design variables: HH cluster, HH strata, HH serial #, person weight
               'county','city','puma','cpuma0010', # Geographic identifiers
               'white','black','asian','hispanic','otherrace','male', # Individual-level covariates
-              'age_u18','age_18_24','age_25_34','age_35_44','age_45_54','age_55_64','age_over64',
-              'educ_ged','educ_hs','educ_somecollege','educ_associates','educ_bachelors','educ_advdegree')]
+              'age_18_24','age_25_34','age_35_44','age_45_54','age_55_64','age_over64',
+              'educ_lesshs','educ_ged','educ_hs','educ_somecollege','educ_associates','educ_bachelors','educ_advdegree')]
 
 # Generate Time (X)
 set.seed(20)
 pop$X <- runif(sum(pop$Y), 0, 365.25*10)
 
 # Generate Exposure - Socio-Demographic Patterns Loosely Based on Cigarette Smoking in U.S. (https://www.cdc.gov/tobacco/campaign/tips/resources/data/cigarette-smoking-in-united-states.html)
-baseline_A <- log(0.5)
+baseline_A <- log(0.4)
 set.seed(2)
 pop$A <- rbinom(N, size = 1, prob = expit(baseline_A + 
                                           (log(1))*pop$black + 
-                                          (log(0.6))*pop$asian + 
+                                          (log(1.1))*pop$asian + 
                                           (log(0.8))*pop$hispanic +
-                                          (log(1.2))*pop$otherrace + 
-                                          (log(2))*pop$age_18_24 +
-                                          (log(3))*pop$age_25_34 +
-                                          (log(2.5))*pop$age_35_44 +
-                                          (log(2))*pop$age_45_54 +
-                                          (log(1.5))*pop$age_55_64 +
-                                          (log(1.2))*pop$age_over64 +
-                                          (log(1.5))*pop$male +
-                                          (log(2))*pop$educ_ged +
-                                          (log(0.9))*pop$educ_hs + 
-                                          (log(0.8))*pop$educ_somecollege +
-                                          (log(0.7))*pop$educ_associates +
-                                          (log(0.6))*pop$educ_bachelors +
-                                          (log(0.5))*pop$educ_advdegree))
+                                          (log(0.9))*pop$otherrace + 
+                                          (log(1.1))*pop$age_25_34 +
+                                          (log(1.2))*pop$age_35_44 +
+                                          (log(1.3))*pop$age_45_54 +
+                                          (log(1.4))*pop$age_55_64 +
+                                          (log(3))*pop$age_over64 +
+                                          (log(3))*pop$male +
+                                          (log(3))*pop$educ_ged +
+                                          (log(1.2))*pop$educ_hs + 
+                                          (log(1.1))*pop$educ_somecollege +
+                                          (log(1))*pop$educ_associates +
+                                          (log(0.9))*pop$educ_bachelors +
+                                          (log(0.8))*pop$educ_advdegree))
 
   # Check Exposure Frequency
   summary(pop$A)
 
 # Generate Outcome as Function of Exposure and Covariates - Socio-Demographic Patterns Loosely Based on Incidence of Lung Cancer in U.S. (https://www.cdc.gov/cancer/lung/statistics/race.htm)
 trueOR <- log(2)
-baseline_Y <- log(0.03)
+baseline_Y <- log(0.005)
 set.seed(3)
 pop$Y <- rbinom(N, size = 1, prob = expit(baseline_Y + 
                                           trueOR*pop$A +
-                                          (log(1.2))*pop$black + 
-                                          (log(0.8))*pop$asian + 
-                                          (log(0.6))*pop$hispanic +
+                                          (log(1.1))*pop$black + 
+                                          (log(0.9))*pop$asian + 
+                                          (log(1.1))*pop$hispanic +
                                           (log(1))*pop$otherrace + 
-                                          (log(1.2))*pop$age_18_24 +
-                                          (log(1.5))*pop$age_25_34 +
-                                          (log(2))*pop$age_35_44 +
-                                          (log(2.5))*pop$age_45_54 +
-                                          (log(3))*pop$age_55_64 +
-                                          (log(3.5))*pop$age_over64 +
-                                          (log(1.5))*pop$male +
-                                          (log(.9))*pop$educ_ged +
-                                          (log(.8))*pop$educ_hs + 
-                                          (log(.7))*pop$educ_somecollege +
-                                          (log(.6))*pop$educ_associates +
-                                          (log(.5))*pop$educ_bachelors +
-                                          (log(.4))*pop$educ_advdegree))
+                                          (log(1.1))*pop$age_25_34 +
+                                          (log(1.2))*pop$age_35_44 +
+                                          (log(1.3))*pop$age_45_54 +
+                                          (log(1.4))*pop$age_55_64 +
+                                          (log(3))*pop$age_over64 +
+                                          (log(3))*pop$male +
+                                          (log(3))*pop$educ_ged +
+                                          (log(1.1))*pop$educ_hs + 
+                                          (log(1))*pop$educ_somecollege +
+                                          (log(0.9))*pop$educ_associates +
+                                          (log(0.8))*pop$educ_bachelors +
+                                          (log(0.7))*pop$educ_advdegree))
 
   # Check Outcome Frequency
   summary(pop$Y)
 
 # Logistic Model to Check Fidelity of Exposure/Outcome Relationship in Total Population
-mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
+mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
 summary(mod)
 exp(coef(mod))
 
 # Check for presence of confounding in total population
 crude_mod <- glm(Y ~ A, data = pop, family = "binomial")
 summary(crude_mod)
-exp(coef(crude_mod)) # OR = 2.0774 vs. true OR in pop of 1.9986, is this enough or should we try to make it more confounded?
+exp(coef(crude_mod)) # crude OR = 2.9930 vs. true OR = 1.9996
 
 # Generate Case Occurrence/Censoring Time Variable (10 Years of Follow-Up, Measured in Days)
 set.seed(4)
 pop$time[pop$Y==1] <- runif(sum(pop$Y), 0, 365.25*10)
 pop$time[pop$Y==0] <- 365.25*10
+pop$X[pop$Y==0] <- 365.25*10
 
 ### KEEP POPULATION FIXED - TRUTH
 
@@ -232,27 +235,30 @@ pop <- read.csv("data/population.data.csv", stringsAsFactors = F)
 
 # Calculate True OR, CIR, and IDR for total population
 # OR calculated using logistic regression model
-trueOR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
+trueOR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
 trueOR <- as.numeric(exp(coef(trueOR_mod)["A"]))
 
 # CIR calculated using log binomial model
-trueCIR_lbmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family= binomial(log))
+trueCIR_lbmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family= binomial(log))
 trueCIR_lb <- as.numeric(exp(coef(trueCIR_lbmod)["A"]))
 
 # CIR caluclated using poisson model
-trueCIR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson') # negative binomial model returned 1.894534
+trueCIR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson') # negative binomial model returned 1.894534
 trueCIR_p <- as.numeric(exp(coef(trueCIR_pmod)["A"]))
-dispersiontest(trueCIR_pmod) #shows overdispersed
 
 # IDR calculated using poisson model with case occurrence offset
-trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
+trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
 trueIDR <- as.numeric(exp(coef(trueIDR_mod)["A"]))
-dispersiontest(trueIDR_mod) #shows overdispersed
 
 # IDR calculated using negative binomial model
-#trueIDR_mod.nb <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop)
+#trueIDR_mod.nb <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=100))
 #trueIDR.nb <- as.numeric(exp(coef(trueIDR_mod.nb)["A"]))
 # error with nb model: alternation limit reached/did not converge
+
+# Looking at dispersion
+dispersiontest(trueCIR_pmod) 
+dispersiontest(trueIDR_mod) 
+pchisq(2 * (logLik(trueIDR_mod) - logLik(trueIDR_mod.nb)), df = 1, lower.tail = FALSE) #shows negative binomial model preferred 
 
 # Sample down the dataset for testing purposes
 #data <- pop[sample(1:nrow(pop), 4000, replace=F),]
@@ -317,7 +323,7 @@ study <- function(seed, # random seed to make sampling replicable
     sample <- rbind(allcases, control.samp) 
     
     # Run model
-    mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
+    mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
                data=sample, family='binomial')
     
     # Pull the main point estimate and CI
@@ -342,7 +348,7 @@ study <- function(seed, # random seed to make sampling replicable
     sample <- rbind(subcohort,extracases)
     
     # Run model - cox regression for case-cohort design. I'm not 100% sure this is correct
-    mod <- cch(Surv(time, Y) ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
+    mod <- cch(Surv(time, Y) ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
                data = sample,
                subcoh =~subcohort, id=~id, 
                cohort.size=nrow(data))
@@ -358,12 +364,12 @@ study <- function(seed, # random seed to make sampling replicable
     # Apply design
     sample <- ccwc(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
                    #match=list(), # use this argument for variables we want to match on
-      include=list(A,black,asian,hispanic,otherrace,age_18_24,age_25_34,age_35_44,
+      include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                    age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
                    educ_associates,educ_bachelors,educ_advdegree), data=data, silent=FALSE)
     
     # Run model
-    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_18_24 + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + strata(Set), data = sample)
+    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + strata(Set), data = sample)
 
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[1])
@@ -427,11 +433,11 @@ summary(results)
 hist(results$est)
 
 # Calculate 95% CI coverage - % of calculated CIs that include the true OR
-results$CIcover <- as.numeric(results$lower<=2 & results$upper>=2)
+results$CIcover <- as.numeric(results$lower<=trueOR & results$upper>=trueOR)
 round(mean(results$CIcover, na.rm=T)*100,1)
 
 # Calculate Bias - average distance of point estimates away from true OR in repeated simulations
-bias <- mean(results$est - 2) #should assign trueOR, is currently in line 164 which gets skipped
+bias <- mean(results$est - trueOR) #should assign trueOR, is currently in line 164 which gets skipped
 bias
 
 # Calculate Variance - variance of point estimate of repeated simulations
@@ -439,7 +445,7 @@ variance <- var(results$est)
 variance
 
 # Calculate MSE - mean squared error of point estimate of repeated simulations
-MSE <- mean((results$est - 2)^2)
+MSE <- mean((results$est - trueOR)^2)
 MSE
 
 
