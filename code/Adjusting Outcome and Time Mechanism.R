@@ -40,8 +40,8 @@ N <- 1000000
 # Generate Time Variable (X)
 set.seed(1)
 
-pop$X <- runif(N, 0, 365.25*10)
-#pop$X <- rnorm(N, 365.25*5, 365.25*1)# Think about other distributions as well
+pop$time <- runif(N, 0, 365.25*10)
+#pop$time <- rnorm(N, 365.25*5, 365.25*1)# Think about other distributions as well
 
 # Generate Exposure
 baseline_A <- log(0.4)
@@ -90,7 +90,7 @@ generate_outcome <- function(OR, baselineY) {
                                               (log(.9))*pop$educ_associates +
                                               (log(.8))*pop$educ_bachelors +
                                               (log(.7))*pop$educ_advdegree)) 
-                                              #+ (log(1.00000000000001))*pop$X)) No longer including time in outcome mechanims
+                                              #+ (log(1.00000000000001))*pop$time)) No longer including time in outcome mechanims
   
 }
 
@@ -100,10 +100,10 @@ pop$Y.2 <- generate_outcome(OR = 2, baselineY = 0.005) # for ~2% outcome frequen
 pop$Y.05 <- generate_outcome(OR = 2, baselineY = 0.0011) # for ~0.05% outcome frequency
 
 # Set all non-cases to time = end of study 
-pop$X.20 <- ifelse(pop$Y.20==0, 365.25*10, pop$X)
-pop$X.10 <- ifelse(pop$Y.10==0, 365.25*10, pop$X)
-pop$X.2 <- ifelse(pop$Y.2==0, 365.25*10, pop$X)
-pop$X.05 <- ifelse(pop$Y.05==0, 365.25*10, pop$X)
+pop$time.20 <- ifelse(pop$Y.20==0, 365.25*10, pop$time)
+pop$time.10 <- ifelse(pop$Y.10==0, 365.25*10, pop$time)
+pop$time.2 <- ifelse(pop$Y.2==0, 365.25*10, pop$time)
+pop$time.05 <- ifelse(pop$Y.05==0, 365.25*10, pop$time)
 
 # Check Outcome Frequency
 summary(pop$Y.20)
@@ -113,7 +113,7 @@ summary(pop$Y.05)
 
 # Set X and Y to run following models
 pop$Y <- pop$Y.2
-pop$X <- pop$X.2
+pop$time <- pop$time.2
 
 # Logistic Model to Check Fidelity of Exposure/Outcome Relationship in Total Population
 mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
@@ -139,13 +139,13 @@ trueCIR_p <- as.numeric(exp(coef(trueCIR_pmod)["A"])); trueCIR_p
 
 # True Incidence Density Ratio in total population
 # Poisson Model with X offset
-trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(X), data=pop, family='poisson')
+trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
 trueIDR <- as.numeric(exp(coef(trueIDR_mod)["A"])); trueIDR
 # Quasi-poisson model with X offset
-trueIDR_mod.qp <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(X), data=pop, family='quasipoisson')
+trueIDR_mod.qp <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='quasipoisson')
 trueIDR.qp <- as.numeric(exp(coef(trueIDR_mod.qp)["A"])); trueIDR.qp
 # Negative Binomial Model
-trueIDR_mod.nb <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(X)), data=pop, control=glm.control(maxit=50))
+trueIDR_mod.nb <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=50))
 trueIDR.nb <- as.numeric(exp(coef(trueIDR_mod.nb)["A"]))
 
 # Looking at dispersion
@@ -155,5 +155,20 @@ pchisq(2 * (logLik(trueIDR_mod) - logLik(trueIDR_mod.nb)), df = 1, lower.tail = 
 
  ## To save population data
 #write.csv(pop, "data/population.data.csv", row.names=F)
-  
+
+# Frequency Tables
+table <- xtabs(~ male + race, data = pop) 
+#table <- xtabs(~ male + education, data = pop)
+#table <- xtabs(~ male + age, data = pop)
+#table <- xtabs(~ male + A, data = pop)
+#table <- xtabs(~ race + education, data = pop)
+#table <- xtabs(~ race + age, data = pop)
+#table <- xtabs(~ race + A, data = pop)
+#table <- xtabs(~ education + age, data = pop)
+#table <- xtabs(~ education + A, data = pop)
+#table <- xtabs(~ age + A, data = pop)
+
+ftable(table)
+prop.table(table)
+summary(table)
 # END

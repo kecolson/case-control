@@ -61,6 +61,7 @@ library(survival) # for clogit analysis
 library(dplyr)
 library(MASS) # for negative binomial models
 library(AER) # for dispersion test https://www.rdocumentation.org/packages/AER/versions/1.2-5/topics/dispersiontest
+library(pscl) 
 
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
@@ -148,7 +149,7 @@ pop <- pop[,c('cluster','strata','serial', # Survey design variables: HH cluster
 
 # Generate Time (X)
 set.seed(20)
-pop$X <- runif(sum(pop$Y), 0, 365.25*10)
+pop$time <- runif(N, 0, 365.25*10)
 
 # Generate Exposure - Socio-Demographic Patterns Loosely Based on Cigarette Smoking in U.S. (https://www.cdc.gov/tobacco/campaign/tips/resources/data/cigarette-smoking-in-united-states.html)
 baseline_A <- log(0.4)
@@ -212,9 +213,7 @@ exp(coef(crude_mod)) # crude OR = 2.9930 vs. true OR = 1.9996
 
 # Generate Case Occurrence/Censoring Time Variable (10 Years of Follow-Up, Measured in Days)
 set.seed(4)
-pop$time[pop$Y==1] <- runif(sum(pop$Y), 0, 365.25*10)
 pop$time[pop$Y==0] <- 365.25*10
-pop$X[pop$Y==0] <- 365.25*10
 
 ### KEEP POPULATION FIXED - TRUTH
 
@@ -246,17 +245,24 @@ trueCIR_lb <- as.numeric(exp(coef(trueCIR_lbmod)["A"]))
 trueCIR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='poisson') # negative binomial model returned 1.894534
 trueCIR_p <- as.numeric(exp(coef(trueCIR_pmod)["A"]))
 
+# CIR calculated using negative binomial model
+trueCIR_nbmod <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=25))
+trueCIR_nb <- as.numeric(exp(coef(trueCIR_nbmod)["A"]))
+
 # IDR calculated using poisson model with case occurrence offset
-trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
-trueIDR <- as.numeric(exp(coef(trueIDR_mod)["A"]))
+trueIDR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
+trueIDR <- as.numeric(exp(coef(trueIDR_pmod)["A"]))
 
 # IDR calculated using negative binomial model
-#trueIDR_mod.nb <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=100))
-#trueIDR.nb <- as.numeric(exp(coef(trueIDR_mod.nb)["A"]))
+#trueIDR_nbmod <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=100))
+#trueIDR_nb <- as.numeric(exp(coef(trueIDR_nbmod)["A"]))
 # error with nb model: alternation limit reached/did not converge
 
-# Looking at dispersion
+# Looking at dispersion CIR
 dispersiontest(trueCIR_pmod) 
+pchisq(2 * (logLik(trueCIR_pmod) - logLik(trueCIR_nbmod)), df = 1, lower.tail = FALSE)
+
+# Looking at dispersion IDR
 dispersiontest(trueIDR_mod) 
 pchisq(2 * (logLik(trueIDR_mod) - logLik(trueIDR_mod.nb)), df = 1, lower.tail = FALSE) #shows negative binomial model preferred 
 
