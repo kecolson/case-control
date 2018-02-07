@@ -246,16 +246,20 @@ trueCIR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + a
 trueCIR_p <- as.numeric(exp(coef(trueCIR_pmod)["A"]))
 
 # CIR calculated using negative binomial model
-trueCIR_nbmod <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=25))
+trueCIR_nbmod <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, control=glm.control(maxit=50))
 trueCIR_nb <- as.numeric(exp(coef(trueCIR_nbmod)["A"]))
+
+# IDR calculated with log binomial model
+trueIDR_lbmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family= binomial(log))
+trueIDR_lb <- as.numeric(exp(coef(trueIDR_lbmod)["A"]))
 
 # IDR calculated using poisson model with case occurrence offset
 trueIDR_pmod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
-trueIDR <- as.numeric(exp(coef(trueIDR_pmod)["A"]))
+trueIDR_p <- as.numeric(exp(coef(trueIDR_pmod)["A"]))
 
 # IDR calculated using negative binomial model
-#trueIDR_nbmod <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=100))
-#trueIDR_nb <- as.numeric(exp(coef(trueIDR_nbmod)["A"]))
+trueIDR_nbmod <- glm.nb(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + offset(log(time)), data=pop, control=glm.control(maxit=100))
+trueIDR_nb <- as.numeric(exp(coef(trueIDR_nbmod)["A"]))
 # error with nb model: alternation limit reached/did not converge
 
 # Looking at dispersion CIR
@@ -264,7 +268,7 @@ pchisq(2 * (logLik(trueCIR_pmod) - logLik(trueCIR_nbmod)), df = 1, lower.tail = 
 
 # Looking at dispersion IDR
 dispersiontest(trueIDR_mod) 
-pchisq(2 * (logLik(trueIDR_mod) - logLik(trueIDR_mod.nb)), df = 1, lower.tail = FALSE) #shows negative binomial model preferred 
+pchisq(2 * (logLik(trueIDR_mod) - logLik(trueIDR_mod.nb)), df = 1, lower.tail = FALSE) #shows negative binomial model preferred when it converges?
 
 # Sample down the dataset for testing purposes
 #data <- pop[sample(1:nrow(pop), 4000, replace=F),]
