@@ -23,26 +23,10 @@
 #                      sampling analyses.
 #          02/14/2018: CL changed outcome mechansim to come from exponential distribution and revised 
 #                      code for true OR and IDR accordingly
+#          02/19/2018: EM cleaned up commenting throughout; added lines to save true OR and IDR; 
+#                      corrected srs weights for controls to be 1/pr(samp) instead of 1; removed
+#                      case-cohort
 ################################################################################################
-
-# PENDING QUESTIONS TO CHECK WITH JEN AND PATRICK
-  # Which type(s) of multistage surveys to mimic? Start with ACS?
-  # Current covariates we have are XX. Covariates include variables we will want to sample based on (e.g. cluster), and ones we will want to control for in the analysis (e.g. education). Exposure and outcome mechanisms have been honed based on these, but are there others that would be critical to include? Some others we could consider: household income, food stamps, household composition, marital status, foreign born, citizenship status, years in US, language spoken, health insurance, school attendance, employment status, occupation, household or personal income, poverty status, residential transience, disabilities/difficulties of living, veteran status.
-  # Specifications: We created a time of case occurrence drawn from a uniform distribution; are assuming 10 years of perfect follow up for controls; population of 1 million, outcome frequency of 6%, true OR of 2, etc. Sound good?
-  # Patrick - For case-cohort, cox model is the right one to use? How to deal with tied failure times in density sampled?
-
-# NEXT STEPS 
-  # Continue to develop and test sampling and analysis part of code for the three different types of case control designs (cumulative, case-cohort, density-sampled), with controls drawn randomly from the population. Confirm that each of these designs recovers the parameter/quantity we expect.
-  # Work on updating function so it can take in different exposure frequencies (different values of Y)
-
-# QUESTIONS FOR US TO DISCUSS AT OUR NEXT MEETING
-  # In the case-cohort design, the controls are not sampled separately from the cases. Rather, you sample from a baseline cohort irrespective of later case/control status. Think more about whether the case-cohort design is relevant to what we're doing and if so, how it would mesh with the concept of drawing controls from complex surveys. 
-  # Do we want to only include individuals 18 and older? How do we deal with education covariate for youngest age group?
-  # Do we ultimately want to make it very easy for users to alter true odds ratio and outcome prevalence, or should we just generate an assortment of datasets that have a range of combinations of true odds ratio and prevalences. That is, will the code to create the population be published or will the final population be provided as a dataset.
-
-# FEATURES WE WILL/MAY WANT TO INCORPORATE LATER
-  # Different types of sampling of controls: cluster sampling, stratified, ACS, NHANES, Ad Health, NHIS, BRFSS
-  # Matching 
 
 # ASSUMPTIONS
   # Perfect follow-up
@@ -71,7 +55,7 @@ library(geepack) # for modified poisson
 
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
-#setwd("C:/Users/kecolson/Google Drive/simulation/case-control") # Ellie's directory
+#setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
 setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
 
 ########################
@@ -175,7 +159,7 @@ pop$A <- rbinom(N, size = 1, prob = expit(baseline_A +
                                           (log(0.8))*pop$educ_advdegree))
 
   # Check Exposure Frequency
-  summary(pop$A)
+  summary(pop$A) # 48%
 
 # Generate Outcome as Function of Exposure and Covariates - Socio-Demographic Patterns Loosely Based on Incidence of Lung Cancer in U.S. (https://www.cdc.gov/cancer/lung/statistics/race.htm)
 # Using exponential distribution
@@ -211,7 +195,7 @@ pop$Y[pop$time > 365.25*10] <- 0
 pop$time[pop$Y==0] <- 365.25*10
 
   # Check Outcome Frequency
-  summary(pop$Y)
+  summary(pop$Y) # 2%
 
 # Check Fidelity of Exposure/Outcome Relationship in Total Population
 # Logistic Model
@@ -237,6 +221,8 @@ exp(coef(poscrude_mod)) # crude IDR = 2.9422 vs. true IDR = 1.9342
 
 ## Save population data
 write.csv(pop, "data/population.data.csv", row.names=F)
+write.csv(exp(coef(log_mod)["A"]), "data/trueOR.csv", row.names=F)
+write.csv(exp(coef(pos_mod)["A"]), "data/trueIDR.csv", row.names=F)
 
 rm(list=setdiff(ls(), "pop")) # clear everything except population data
 
@@ -247,17 +233,11 @@ rm(list=setdiff(ls(), "pop")) # clear everything except population data
 # Test Designs
 ########################
 
-# Bring in data
+# Bring in data and true parameters
 pop <- read.csv("data/population.data.csv", stringsAsFactors = F)
 
-# Calculate True OR and IDR for total population
-# OR calculated using logistic regression model
-trueOR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
-trueOR <- as.numeric(exp(coef(trueOR_mod)["A"]))
-
-# IDR calculated using poisson model with case occurrence offset
-trueIDR_mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
-trueIDR <- as.numeric(exp(coef(trueIDR_mod)["A"]))
+trueOR  <- read.csv("data/trueOR.csv",  stringsAsFactors = F)
+trueIDR <- read.csv("data/trueIDR.csv", stringsAsFactors = F)
 
 # Sample down the dataset for testing purposes
 #data <- pop[sample(1:nrow(pop), 4000, replace=F),]
@@ -270,11 +250,14 @@ data <- pop
 ####
 
 study <- function(seed, # random seed to make sampling replicable
-                  cctype = "cumulative", # options will be "cumulative", "cch" for case-cohort, and "density" for density-sampled
-                  samp   = "srs", # sampling of controls. Options will be "srs" for simple random sample, "sps" for simple probability sample with know probability of selection for each individual, "clustered1" for single stage clustered design, "clustered2" for two-stage clustered design 
-                  ratio = 1, # ratio of controsl to cases
-                  data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
-                  subcohort.size # size of subcohort for case-cohort design, if relevant
+                  cctype = "cumulative", # options will be "cumulative" and "density" for density-sampled
+                  samp   = "srs", # sampling of controls. Options will be:
+                    # "srs" for simple random sample
+                    # "sps" for simple probability sample with know probability of selection for each individual
+                    # "clustered1" for single stage clustered design
+                    # "clustered2" for two-stage clustered design 
+                  ratio = 1, # ratio of controls to cases
+                  data # argument to provide the population data. Population data will take the format of the pop data we've created. 
                    # any other options here TBD
 ) {
   
@@ -291,7 +274,7 @@ study <- function(seed, # random seed to make sampling replicable
   if (samp=="srs") { # simple random sample of controls
     
     control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, replace=F),] 
-    control.samp$sampweight <- 1
+    control.samp$sampweight <- nrow(allcases)*ratio / nrow(allcontrols)
     
   } else if (samp=="sps") {  # simple probability sample of controls with known probability of selection for each individual
     
@@ -301,8 +284,7 @@ study <- function(seed, # random seed to make sampling replicable
     control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
     allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
  
-  } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.    
-       
+  } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
     cluster <- aggregate(data.frame(popsize = allcontrols$cluster), list(cluster = allcontrols$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
     cluster$cls.sampprob <- cluster$popsize/nrow(allcontrols) # Calculate cluster sampling probability
     cluster.samp <- cluster[sample(1:nrow(cluster), size = round((nrow(allcases)*ratio/mean(table(data$cluster)))/2,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
@@ -332,7 +314,7 @@ study <- function(seed, # random seed to make sampling replicable
     
   }
   
-  ####### PHASE 2: implement case-control - cumulative, density sampled, or case-cohort and analyse the data appropriately
+  ####### PHASE 2: implement case-control - cumulative or density sampled, and analyse the data appropriately
   set.seed(seed+1)
   
   # CUMULATIVE CASE-CONTROL
@@ -342,7 +324,8 @@ study <- function(seed, # random seed to make sampling replicable
     sample <- rbind(allcases, control.samp) 
     
     # Run model
-    mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
+    mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
+                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
                data=sample, family='binomial', weights = sampweight)
     
     # Pull the main point estimate and CI
@@ -350,32 +333,6 @@ study <- function(seed, # random seed to make sampling replicable
     lower <- exp(coef(mod)[2] - 1.96*summary(mod)$coefficients[2,2])
     upper <- exp(coef(mod)[2] + 1.96*summary(mod)$coefficients[2,2])
 
-  # CASE-COHORT
-  } else if (cctype=="cch") {
-    
-    # Apply design
-    # Give people an ID
-    data$id <- 1:nrow(data)
-      
-    # Identify a subcohort from baseline (randomly drawn from base population). 
-    subcohort <- data[sample(1:nrow(data), subcohort.size, replace=F),]
-    subcohort$subcohort <- 1
-    
-    # Take as the analysis data, this subcohort, plus and additional cases not in the subcohort
-    extracases <- data[!data$id %in% subcohort$id & data$Y==1,]
-    extracases$subcohort <- 0
-    sample <- rbind(subcohort,extracases)
-    
-    # Run model - cox regression for case-cohort design. I'm not 100% sure this is correct
-    mod <- cch(Surv(time, Y) ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
-               data = sample,
-               subcoh =~subcohort, id=~id, 
-               cohort.size=nrow(data))
-    
-    # Pull the main point estimate and CI
-    est <- exp(coef(mod)[1])
-    lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,2])
-    upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,2])
     
   # DENSITY-SAMPLED CASE-CONTROL
   } else if (cctype=="density") {
@@ -389,7 +346,9 @@ study <- function(seed, # random seed to make sampling replicable
                    educ_associates,educ_bachelors,educ_advdegree,sampweight), data=presample, silent=FALSE)
     
     # Run model
-    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + strata(Set), data = sample, weights = sampweight, method = "efron")
+    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
+                    educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + strata(Set), 
+                  data = sample, weights = sampweight, method = "efron")
 
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[1])
@@ -397,7 +356,7 @@ study <- function(seed, # random seed to make sampling replicable
     upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
   }
   
-  # Return the sampled data, and model object
+  # Return the sampled data, model object, point estimate, and CI
   return(list(sample=sample, mod=mod, est=est, lower=lower, upper=upper))
 }
 
@@ -406,18 +365,13 @@ study <- function(seed, # random seed to make sampling replicable
 ## Test function
 ####
 
-# Warning: the second and third take a long time to run.
+# Warning: density sampling a long time to run.
 
 study1 <- study(seed=1, cctype = "cumulative", samp = "srs", ratio = 1, data=pop)
 round(c(study1$est, study1$lower, study1$upper),3) 
 
-study2 <- study(seed=1, cctype = "cch", samp = "srs", ratio = 1, data=pop, subcohort.size=10000) 
-round(c(study2$est, study2$lower, study2$upper),3) 
-
-study3 <- study(seed=1, cctype = "density", samp = "srs", ratio = 1, data=pop) # warning has tied failure times. Look into this/check with Patrick.
+study2 <- study(seed=1, cctype = "density", samp = "srs", ratio = 1, data=pop) # warning has tied failure times. Look into this/check with Patrick.
 round(c(study3$est, study3$lower, study3$upper),3) 
-
-# ECM 12/28/2017: these all appear to be producing estimates right around 2, the true OR. This is good.
 
 
 ####
@@ -457,7 +411,7 @@ results$CIcover <- as.numeric(results$lower<=trueOR & results$upper>=trueOR)
 round(mean(results$CIcover, na.rm=T)*100,1)
 
 # Calculate Bias - average distance of point estimates away from true OR in repeated simulations
-bias <- mean(results$est - trueOR) #should assign trueOR, is currently in line 164 which gets skipped
+bias <- mean(results$est - trueOR) 
 bias
 
 # Calculate Variance - variance of point estimate of repeated simulations
