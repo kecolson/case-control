@@ -26,6 +26,7 @@
 #          02/19/2018: EM cleaned up commenting throughout; added lines to save true OR and IDR; 
 #                      corrected srs weights for controls to be 1/pr(samp) instead of 1; removed
 #                      case-cohort
+#          02/20/2018: CR added stratified sampling design and began creating final simulation function.
 ################################################################################################
 
 # ASSUMPTIONS
@@ -34,8 +35,6 @@
 
 # NOTES
   # Analyzing ACS data: https://stats.idre.ucla.edu/other/mult-pkg/faq/sample-setups-for-commonly-used-survey-data-sets/
-
-
 
 ####### PROGRAM START
 
@@ -250,12 +249,15 @@ data <- pop
 ####
 
 study <- function(seed, # random seed to make sampling replicable
-                  cctype = "cumulative", # options will be "cumulative" and "density" for density-sampled
+                  cctype = "cumulative", # case control type. Options will be:
+                    # "cumulative"  for cumulative case-control
+                    # "density" for density-sampled
                   samp   = "srs", # sampling of controls. Options will be:
                     # "srs" for simple random sample
                     # "sps" for simple probability sample with know probability of selection for each individual
                     # "clustered1" for single stage clustered design
                     # "clustered2" for two-stage clustered design 
+                    # "stratified" for single stage stratified design
                   ratio = 1, # ratio of controls to cases
                   data # argument to provide the population data. Population data will take the format of the pop data we've created. 
                    # any other options here TBD
@@ -285,6 +287,7 @@ study <- function(seed, # random seed to make sampling replicable
     allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
  
   } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
+    
     cluster <- aggregate(data.frame(popsize = allcontrols$cluster), list(cluster = allcontrols$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
     cluster$cls.sampprob <- cluster$popsize/nrow(allcontrols) # Calculate cluster sampling probability
     cluster.samp <- cluster[sample(1:nrow(cluster), size = round((nrow(allcases)*ratio/mean(table(data$cluster)))/2,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
@@ -299,15 +302,33 @@ study <- function(seed, # random seed to make sampling replicable
 
     puma <- aggregate(data.frame(popsize = allcontrols$puma), list(puma = allcontrols$puma), length) # Calculate cluster (i.e. PUMA) population size to determine cluster sampling probability (proportional to cluster population size)
     puma$cls.sampprob <- puma$popsize/nrow(allcontrols) # Calculate cluster sampling probability
-    puma.samp <- puma[sample(1:nrow(puma), size = 150, prob = puma$cls.sampprob, replace=F),] # Sample 150 clusters using cluster sampling probability
-    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(150)# Randomly sample 150 controls from each of the 150 selected clusters
+    puma.samp <- puma[sample(1:nrow(puma), size = 143, prob = puma$cls.sampprob, replace=F),] # Sample 150 clusters using cluster sampling probability
+    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(143)# Randomly sample 150 controls from each of the 150 selected clusters
     control.samp <- merge(control.samp, puma.samp, by="puma") # Merge cluster characteristics with sampled controls
-    control.samp$sampprob <- 150/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)
+    control.samp$sampprob <- 143/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)
     control.samp$sampweight <- 1/(control.samp$cls.sampprob*control.samp$sampprob) # Calculate Sampling Weight
     control.samp <- subset(control.samp, select = -c(popsize,cls.sampprob, sampprob)) # Remove unneeded columns
     control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
     rm(puma,puma.samp) # Remove unneeded objects
 
+  } else if (samp=="stratified") {    
+    
+    allcontrols$strata2 <- as.numeric(cut(allcontrols$county,unique(quantile(allcontrols$county,seq(0,1,.1))),include.lowest=TRUE)) # Split counties into 8 strata
+    stratainfo <- data.frame(table(allcontrols$strata2)) # Create dataframe for strata info for calculating sampling weights later
+    stratainfo$size <- round((stratainfo$Freq/nrow(allcontrols))*(nrow(allcases)*ratio)) # Calculate sample size for each strata that is proportional to strata size
+    colnames(stratainfo) <- c("strata2", "stratasize", "stratasampsize") # Rename strata data colunms for merging with sampled controls
+    control.samp <- allcontrols[0,] # Create empty data.frame for samples
+    for(i in 1:length(unique(allcontrols$strata2))) { # Sample controls proportional to strata size
+      controls.strata <- allcontrols[allcontrols$strata2==i,]
+      control.samp.strata <- controls.strata[sample(1:nrow(controls.strata), size = stratainfo$stratasampsize[i], replace=F),]   
+      control.samp <- rbind(control.samp,control.samp.strata)
+    }
+    control.samp <- merge(control.samp, stratainfo, by="strata2") # Merge in strata info to calculate weights
+    control.samp$sampweight <- 1/(control.samp$stratasampsize/control.samp$stratasize) # Calculate Sampling Weight 
+    control.samp <- subset(control.samp, select = -c(strata2, stratasize, stratasampsize)) # Remove unneeded columns
+    control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
+    rm(control.samp.strata, controls.strata, stratainfo, i) # Remove unneeded objects
+  
   } else if (samp=="ACS") {
     
   } else if (samp=="NHANES") {
@@ -378,17 +399,20 @@ round(c(study3$est, study3$lower, study3$upper),3)
 ## Test assessing distribution of estimates
 ####
 
+# CR Quesitons:
+
+
 # We will want to parallelize this for 1000-2000 sims and more complex designs. 
 
-nsims <- 50 # I run out of memory when I try to do this on more than 70 sims.
-
+simulation <- function(nsims = 1000) {
+  
 results <- data.frame(sim=1:nsims, est = NA, lower = NA, upper=NA)
 samples <- models <- NULL
 
 for (i in 1:nsims) {
   print(paste0("iteration ",i))
   
-  run <- study(seed=i, cctype = "cumulative", samp   = "srs", ratio = 1, data = pop)
+  run <- study(seed=i, cctype = "cumulative", samp   = "stratified", ratio = 1, data = pop)
   
   samples[[i]] <- run$sample
   models [[i]] <- run$mod
@@ -400,27 +424,26 @@ for (i in 1:nsims) {
   rm(run)
 }
 
-
 # Summarize distribution of point estimates and CIs
-summary(results)
+print(paste0("RESULTS FROM ",nsims," SIMULATIONS:"))
 
-hist(results$est)
+hist(results$est, main="Distribution of Point Estimates", xlab="Point Estimate")
 
 # Calculate 95% CI coverage - % of calculated CIs that include the true OR
-results$CIcover <- as.numeric(results$lower<=trueOR & results$upper>=trueOR)
-round(mean(results$CIcover, na.rm=T)*100,1)
+results$CIcover <- as.numeric(results$lower<=trueOR[1,1] & results$upper>=trueOR[1,1])
+print(paste0(round(mean(results$CIcover, na.rm=T)*100,1),"% of confidence intervals include the true measure of association."))
 
 # Calculate Bias - average distance of point estimates away from true OR in repeated simulations
-bias <- mean(results$est - trueOR) 
-bias
+bias <- round(mean(results$est - trueOR[1,1]),4) 
+print(paste0("Bias = ",bias))
 
 # Calculate Variance - variance of point estimate of repeated simulations
-variance <- var(results$est)
-variance
+variance <- round(var(results$est),4)
+print(paste0("Variance = ",variance))
 
 # Calculate MSE - mean squared error of point estimate of repeated simulations
-MSE <- mean((results$est - trueOR)^2)
-MSE
+MSE <- round(mean((results$est - trueOR[1,1])^2),4)
+print(paste0("MSE = ",MSE))
 
-
+}
 # END
