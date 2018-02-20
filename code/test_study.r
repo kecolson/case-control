@@ -1,7 +1,7 @@
 ################################################################################################
 # NAME: test_study.r
 # AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe
-# DATE STARTED: 12/15/2017    
+# DATE STARTED: 2/20/18
 # PURPOSE: This script is to allow for testing of the study() function, which applies
 #            various survey sampling and case control procedures to 
 #            test the performance of different approaches to selecting controls from external 
@@ -22,6 +22,9 @@ library(geepack) # for modified poisson
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
 #setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
 setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+
+# Source the study function
+source('code/study.r')
 
 # Bring in data and true parameters
 pop <- read.csv("data/population.data.csv", stringsAsFactors = F)

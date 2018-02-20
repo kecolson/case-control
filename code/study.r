@@ -1,7 +1,7 @@
 ################################################################################################
 # NAME: study.r
 # AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe
-# DATE STARTED: 12/15/2017    
+# DATE STARTED: 2/20/18 
 # PURPOSE: Define a function to apply various survey sampling and case control procedures to 
 #            test the performance of different approaches to selecting controls from external 
 #            data sources with complex sampling methods.
