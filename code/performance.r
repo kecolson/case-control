@@ -27,6 +27,10 @@ performance <- function(sim) {
   bias <- round(mean(ests$est - truth),4) 
   print(paste0("Mean bias = ",bias))
   
+  # Calculate Relative Bias - average distance of point estimates away from true OR in repeated simulations
+  relbias <- round(mean((ests$est - truth)/truth*100),2)
+  print(paste0("Mean relative bias (%) = ",relbias))
+  
   # Calculate Variance - variance of point estimate of repeated simulations
   variance <- round(var(ests$est),4)
   print(paste0("Variance = ",variance))
