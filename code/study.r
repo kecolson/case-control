@@ -12,7 +12,7 @@
 # Create a function that will apply the different study designs and analyses
 ####
 
-study <- function(seed, # random seed to make sampling replicable
+study <- function(iteration, # iteration number for indexing runs and seeds
                   cctype = "cumulative", # case control type. Options will be:
                     # "cumulative"  for cumulative case-control
                     # "density" for density-sampled
@@ -23,12 +23,32 @@ study <- function(seed, # random seed to make sampling replicable
                     # "clustered2" for two-stage clustered design 
                     # "stratified" for single stage stratified design
                   ratio = 1, # ratio of controls to cases
-                  data # argument to provide the population data. Population data will take the format of the pop data we've created. 
+                  data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
+                  exposure, # name of exposure variable
+                  outcome,  # name of outcome variable
+                  timevar,   # name of the time variable corresponding to the given outcome frequency
+                  seeds # rigorously produced random seeds
                    # any other options here TBD
 ) {
   
+  print(paste0("Running study number ",iteration))
+  
+  # Load packages on each compute node
+  library("Epi") # for case-cohort and density sampling designs
+  library("survival") # for clogit analysis
+  library("dplyr") # for data management
+  library("parallel") # for setting seeds
+  
+  # Set seed for entire process
+  RNGkind("L'Ecuyer-CMRG")
+  .Random.seed <- seeds[[iteration]]
+  
   ####### PHASE 1: source of cases and controls -- SRS, complex survey, etc. 
-  set.seed(seed)
+  
+  # Put variables into standardized names
+  data$Y <- data[[outcome]]
+  data$A <- data[[exposure]]
+  data$time <- data[[timevar]]
   
   # Select cases and controls
   allcases    <- data[data$Y==1,]
@@ -77,7 +97,7 @@ study <- function(seed, # random seed to make sampling replicable
 
   } else if (samp=="stratified") {    
     
-    allcontrols$strata2 <- as.numeric(cut(allcontrols$county,unique(quantile(allcontrols$county,seq(0,1,.1))),include.lowest=TRUE)) # Split counties into 8 strata
+    allcontrols$strata2 <- as.numeric(cut(allcontrols$county, unique(quantile(allcontrols$county,seq(0,1,.1))), include.lowest=TRUE)) # Split counties into 8 strata
     stratainfo <- data.frame(table(allcontrols$strata2)) # Create dataframe for strata info for calculating sampling weights later
     stratainfo$size <- round((stratainfo$Freq/nrow(allcontrols))*(nrow(allcases)*ratio)) # Calculate sample size for each strata that is proportional to strata size
     colnames(stratainfo) <- c("strata2", "stratasize", "stratasampsize") # Rename strata data colunms for merging with sampled controls
@@ -85,7 +105,7 @@ study <- function(seed, # random seed to make sampling replicable
     for(i in 1:length(unique(allcontrols$strata2))) { # Sample controls proportional to strata size
       controls.strata <- allcontrols[allcontrols$strata2==i,]
       control.samp.strata <- controls.strata[sample(1:nrow(controls.strata), size = stratainfo$stratasampsize[i], replace=F),]   
-      control.samp <- rbind(control.samp,control.samp.strata)
+      control.samp <- rbind(control.samp, control.samp.strata)
     }
     control.samp <- merge(control.samp, stratainfo, by="strata2") # Merge in strata info to calculate weights
     control.samp$sampweight <- 1/(control.samp$stratasampsize/control.samp$stratasize) # Calculate Sampling Weight 
@@ -93,14 +113,10 @@ study <- function(seed, # random seed to make sampling replicable
     control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
     rm(control.samp.strata, controls.strata, stratainfo, i) # Remove unneeded objects
   
-  } else if (samp=="ACS") {
-    
-  } else if (samp=="NHANES") {
-    
   }
   
+  
   ####### PHASE 2: implement case-control - cumulative or density sampled, and analyse the data appropriately
-  set.seed(seed+1)
   
   # CUMULATIVE CASE-CONTROL
   if (cctype=="cumulative") {
@@ -109,40 +125,47 @@ study <- function(seed, # random seed to make sampling replicable
     sample <- rbind(allcases, control.samp) 
     
     # Run model
-    mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
-                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, 
+    mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male +
+                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree,
                data=sample, family='binomial', weights = sampweight)
     
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[2])
     lower <- exp(coef(mod)[2] - 1.96*summary(mod)$coefficients[2,2])
     upper <- exp(coef(mod)[2] + 1.96*summary(mod)$coefficients[2,2])
-
+    
+    # pull the relevant true parameter
+    truth <- data[[paste0("trueOR.",outcome)]][1]
     
   # DENSITY-SAMPLED CASE-CONTROL
   } else if (cctype=="density") {
     
     # Apply design
     presample <- rbind(allcases, control.samp) 
-    sample <- ccwc(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
+    suppressWarnings(sample <- ccwc(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
                    #match=list(), # use this argument for variables we want to match on
       include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                    age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                   educ_associates,educ_bachelors,educ_advdegree,sampweight), data=presample, silent=FALSE)
+                   educ_associates,educ_bachelors,educ_advdegree,sampweight), data=presample, silent=FALSE))
     
     # Run model
-    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
-                    educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + strata(Set), 
+    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                    male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                    strata(Set),
                   data = sample, weights = sampweight, method = "efron")
 
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[1])
     lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
     upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
+    
+    # pull the relevant true parameter
+    truth <- data[[paste0("trueIDR.",outcome)]][1]
+    
   }
   
   # Return the sampled data, model object, point estimate, and CI
-  return(list(sample=sample, mod=mod, est=est, lower=lower, upper=upper))
+  return(list(sample=sample, mod=mod, est=est, lower=lower, upper=upper, truth=truth))
 }
 
 # END
