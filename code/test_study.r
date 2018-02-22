@@ -15,13 +15,13 @@ rm(list=ls())
 # Load Packages. Be sure your local computer has these installed before running. No need to re-install each time you run. 
 library(Epi) # for case-cohort and density sampling designs
 library(survival) # for clogit analysis
-library(dplyr)
-library(geepack) # for modified poisson
+library(dplyr) # for data management
+library(parallel) # for setting random seeds
 
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
-#setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
-setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
+#setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
 
 # Source the study function
 source('code/study.r')
@@ -35,16 +35,30 @@ pop <- read.csv("data/population.data.csv", stringsAsFactors = F)
 # Full dataset for testing purposes
 data <- pop
 
+# Generate random seed to feed into functino
+RNGkind("L'Ecuyer-CMRG")
+set.seed(1)
+s <- .Random.seed
+seeds <- list(s)
+
+# Select names of exposure, outcome, and time variables to study
+outcome <- "Y.02.A.5"
+exposure <- "A.5"
+timevar <- "time"
+
 ####
 ## Test function
 ####
 
 # Warning: density sampling a long time to run.
 
-study1 <- study(seed=1, cctype = "cumulative", samp = "srs", ratio = 1, data=data)
-round(c(study1$est, study1$lower, study1$upper),3) 
+study1 <- study(iteration=1, cctype = "cumulative", samp = "srs", ratio = 1, data=data,
+                exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds)
+round(c(study1$est, study1$lower, study1$upper, study1$truth),3) 
 
-study2 <- study(seed=1, cctype = "density", samp = "srs", ratio = 1, data=data) # warning has tied failure times. Look into this/check with Patrick.
-round(c(study3$est, study3$lower, study3$upper),3) 
+
+study2 <- study(iteration=1, cctype = "density", samp = "srs", ratio = 1, data=data,
+                exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
+round(c(study2$est, study2$lower, study2$upper, study2$truth),3) 
 
 # END
