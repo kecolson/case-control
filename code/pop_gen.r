@@ -24,7 +24,7 @@ library(locfit) # for expit function
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
 #setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
-setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+setwd("C:/Users/Catherine/Documents/GitHub/case-control_master") # Catherine's directory
 
 # Import Raw ACS Data - California 2010-2013
 raw <- read.dta13("data/usa_00005_10_13.dta")

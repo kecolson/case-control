@@ -23,8 +23,8 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   # Set Working Directory
   if (cluster==F) {
     #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
-    setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
-    #setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+    #setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
+    setwd("C:/Users/Catherine/Documents/GitHub/case-control_master") # Catherine's directory
   }
 
   # Bring in data and true parameters

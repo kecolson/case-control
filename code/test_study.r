@@ -20,8 +20,8 @@ library(parallel) # for setting random seeds
 
 # Set Working Directory
 #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
-setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
-#setwd("C:/Users/Catherine/Desktop/Case Control GSR") # Catherine's directory
+#setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
+setwd("C:/Users/Catherine/Documents/GitHub/case-control_master") # Catherine's directory
 
 # Source the study function
 source('code/study.r')
