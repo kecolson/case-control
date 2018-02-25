@@ -69,7 +69,7 @@ pop <- fulldata[sample(1:nrow(fulldata), size=N, replace=F),]
   # Sex (Two Categories: Male; Female)
   pop$male <- ifelse(pop$sex=='male',1,0)
 
-  # Age (Seven Categories: Under 18; 18-24; 25-34; 35-44; 45-54; 55-64; 65 and older)
+  # Age (Six Categories: 18-24; 25-34; 35-44; 45-54; 55-64; 65 and older)
   pop$agenum <- as.numeric(pop$age)
   #pop$age_u18   <- ifelse(pop$agenum<18,1,0)
   pop$age_18_24 <- ifelse(pop$agenum>=18 & pop$agenum<=24,1,0)
@@ -162,7 +162,8 @@ pop$time[pop$Y.02.A.5 == 0] <- 365.25*10
 # Check Fidelity of Exposure/Outcome Relationship in Total Population
 # Logistic Model
 log_mod <- glm(Y.02.A.5 ~ A.5 + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
-                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')summary(log_mod)
+                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
+
 summary(log_mod)
 print(pop$trueOR.Y.02.A.5 <- exp(coef(log_mod)[2]))
 # Poisson Model
