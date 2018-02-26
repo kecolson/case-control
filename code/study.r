@@ -5,7 +5,7 @@
 # PURPOSE: Define a function to apply various survey sampling and case control procedures to 
 #            test the performance of different approaches to selecting controls from external 
 #            data sources with complex sampling methods.
-# UPDATES: [date]: XX
+# UPDATES: 2/26/2018: CR updated 2-stage clustered design to flexibly handle any outcome frequency
 ################################################################################################
 
 ####
@@ -86,10 +86,10 @@ study <- function(iteration, # iteration number for indexing runs and seeds
 
     puma <- aggregate(data.frame(popsize = allcontrols$puma), list(puma = allcontrols$puma), length) # Calculate cluster (i.e. PUMA) population size to determine cluster sampling probability (proportional to cluster population size)
     puma$cls.sampprob <- puma$popsize/nrow(allcontrols) # Calculate cluster sampling probability
-    puma.samp <- puma[sample(1:nrow(puma), size = 143, prob = puma$cls.sampprob, replace=F),] # Sample 150 clusters using cluster sampling probability
-    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(143)# Randomly sample 150 controls from each of the 150 selected clusters
+    puma.samp <- puma[sample(1:nrow(puma), size = ceiling(sqrt(nrow(allcases))), prob = puma$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability
+    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(ceiling(sqrt(nrow(allcases))))# Randomly sample controls from each of the selected clusters
     control.samp <- merge(control.samp, puma.samp, by="puma") # Merge cluster characteristics with sampled controls
-    control.samp$sampprob <- 143/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)
+    control.samp$sampprob <- ceiling(sqrt(nrow(allcases)))/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)
     control.samp$sampweight <- 1/(control.samp$cls.sampprob*control.samp$sampprob) # Calculate Sampling Weight
     control.samp <- subset(control.samp, select = -c(popsize,cls.sampprob, sampprob)) # Remove unneeded columns
     control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
