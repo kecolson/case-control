@@ -31,30 +31,28 @@ source('code/performance.r')
 # Simple cumulative case-control, simple random sampling, ratio of 1
 sim1 <- sim(nsims=100, cluster=T, cctype="cumulative", samp="srs", ratio=1, 
             exposure="A.5", outcome="Y.02.A.5", timevar="time")
-sim1$est.lower.upper # view the point estimates and CIs
-summary(sim1$results[[1]]$mod) # summarize the model object from the first simulation
-summary(sim1$results[[3]]$sample) # summarize the sample data object from the third simulation
-sim1$results[[1]]$truth # view the true OR
+sim1$est.lower.upper # view the point estimates, CIs, and truth
 
 # Simple density sampled case-control, simple random sampling, ratio of 1
-# sim2 <- sim(nsims=3, cluster=F, cctype="density", samp="srs", ratio=1, 
-#             exposure="A.5", outcome="Y.02.A.5", timevar="time")
+sim2 <- sim(nsims=3, cluster=F, cctype="density", samp="srs", ratio=1, 
+            exposure="A.5", outcome="Y.02.A.5", timevar="time")
 
 ######
 ## Aggregate/summarize performance metrics
 ######
 
 performance(sim1)
-#performance(sim2)
+performance(sim2)
 
 ######
 ## Save everything and close
 ######
 
 save(sim1, file = "results/cumulative_SRS_ratio1_test.rdata")
-#save(sim2, file = "results/density_SRS_ratio1_test.rdata")
+save(sim2, file = "results/density_SRS_ratio1_test.rdata")
 
-# Close MPI. This is only for the cluster. try() tells r to ignore it and continue if it fails (which it will, if running on a local computer)
+# Close worker nodes and MPI. This is only for the cluster. try() tells r to ignore it and continue if it fails (which it will, if running on a local computer)
+try(mpi.close.Rslaves())
 try(mpi.quit(), silent=T)
 
 # END

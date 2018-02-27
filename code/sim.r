@@ -85,23 +85,18 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, ratio=ratio, data=data, 
                              exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
     
-    # Turn off worker nodes
-    mpi.close.Rslaves()
-    
   } else { # if not on cluster, run these simulations locally
     results <- lapply(index, study, cctype=cctype, samp=samp, ratio=ratio, data=data, 
                       exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
   }
   
-  # What comes out of study(): list(sample=sample, # the sampled data
-  #                                 mod=mod, # the model object
-  #                                 est=est, lower=lower, upper=upper, # the point estimate and CI
+  # What comes out of study(): list(est=est, lower=lower, upper=upper, # the point estimate and CI
   #                                 truth=truth) # the true OR or IDR as relevant
     
   # Collapse est, lower, and upper results; leave samples and model objects in list form in "results" object
-  est.lower.upper <- do.call(rbind, lapply(index, function(x) results[[x]][c('est','lower','upper')] ))
+  est.lower.upper <- do.call(rbind, lapply(index, function(x) results[[x]][c('est','lower','upper','truth')] ))
   
-  return(list(results=results, est.lower.upper=est.lower.upper))
+  return(list(est.lower.upper=est.lower.upper))
 }
 
 

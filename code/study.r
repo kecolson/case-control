@@ -31,7 +31,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                    # any other options here TBD
 ) {
   
-  print(paste0("Running study number ",iteration))
+  print(paste0("Running iteration number ",iteration))
   
   # Load packages on each compute node
   library("Epi") # for case-cohort and density sampling designs
@@ -165,7 +165,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   }
   
   # Return the sampled data, model object, point estimate, and CI
-  return(list(sample=sample, mod=mod, est=est, lower=lower, upper=upper, truth=truth))
+  return(list(est=est, lower=lower, upper=upper, truth=truth))
 }
 
 # END
