@@ -23,6 +23,10 @@ performance <- function(sim) {
   CIcover <- as.numeric(ests$lower<=truth & ests$upper>=truth)
   print(paste0(round(mean(CIcover, na.rm=T)*100,5),"% of confidence intervals include the true measure of association."))
   
+  # Calculate mean estimate
+  avg <- round(mean(ests$est))
+  print(paste0("Mean estimate = "),avg)
+  
   # Calculate Bias - average distance of point estimates away from true OR in repeated simulations
   bias <- round(mean(ests$est - truth),10) 
   print(paste0("Mean bias = ",bias))
