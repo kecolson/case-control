@@ -13,8 +13,9 @@ performance <- function(sim) {
   ests <- as.data.frame(sim$est.lower.upper)
   for (vv in names(ests)) ests[[vv]] <- as.numeric(ests[[vv]])
   
-  # Pull the truth
+  # Pull the truth and report it
   truth <- ests$truth[1]
+  print(paste0("Truth = ",truth))
   
   # Summarize distribution of point estimates and CIs
   hist(ests$est, main="Distribution of Point Estimates", xlab="Point Estimate", breaks=30)
@@ -25,7 +26,7 @@ performance <- function(sim) {
   
   # Calculate mean estimate
   avg <- round(mean(ests$est))
-  print(paste0("Mean estimate = "),avg)
+  print(paste0("Mean estimate = ",avg))
   
   # Calculate Bias - average distance of point estimates away from true OR in repeated simulations
   bias <- round(mean(ests$est - truth),10) 
