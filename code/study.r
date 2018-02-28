@@ -7,6 +7,7 @@
 #            data sources with complex sampling methods.
 # UPDATES: 2/26/2018: CR updated 2-stage clustered design to flexibly handle any outcome frequency
 #          2/27/2018  CR updated 2-stage clustered design to incorporate control:case ratio
+#          2/27/2018 CR initialized main results with NA values and wrapped ccwc/clogit in try()
 ################################################################################################
 
 ####
@@ -119,6 +120,12 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   
   ####### PHASE 2: implement case-control - cumulative or density sampled, and analyse the data appropriately
   
+  # Initialize main results with NA values
+  est <- as.numeric(NA)
+  lower <- as.numeric(NA)
+  upper <- as.numeric(NA)
+  truth <- as.numeric(NA)
+  
   # CUMULATIVE CASE-CONTROL
   if (cctype=="cumulative") {
     
@@ -143,17 +150,17 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     # Apply design
     presample <- rbind(allcases, control.samp) 
-    suppressWarnings(sample <- ccwc(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
+    try(suppressWarnings(sample <- ccwc(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
                    #match=list(), # use this argument for variables we want to match on
       include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                    age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                   educ_associates,educ_bachelors,educ_advdegree,sampweight), data=presample, silent=FALSE))
+                   educ_associates,educ_bachelors,educ_advdegree,sampweight), data=presample, silent=FALSE)))
     
     # Run model
-    mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+    try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
                     male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
                     strata(Set),
-                  data = sample, weights = sampweight, method = "efron")
+                  data = sample, weights = sampweight, method = "efron"))
 
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[1])
