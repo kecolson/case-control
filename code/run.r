@@ -26,16 +26,34 @@ source('code/performance.r')
 
 ######
 ## Run simulations of interest to us
+## Save after each simulation, in case the next one fails. 
 ######
 
-# Simple cumulative case-control, simple random sampling, ratio of 1
-sim1 <- sim(nsims=100, cluster=T, cctype="cumulative", samp="srs", ratio=1, 
-            exposure="A.5", outcome="Y.02.A.5", timevar="time")
-sim1$est.lower.upper # view the point estimates, CIs, and truth
+# Options:
+# cctype:
+# "cumulative"  for cumulative case-control
+# "density" for density-sampled
+# samp:
+# "srs" for simple random sample
+# "sps" for simple probability sample with know probability of selection for each individual
+# "clustered1" for single stage clustered design
+# "clustered2" for two-stage clustered design 
+# "stratified" for single stage stratified design
 
-# Simple density sampled case-control, simple random sampling, ratio of 1
-sim2 <- sim(nsims=3, cluster=F, cctype="density", samp="srs", ratio=1, 
-            exposure="A.5", outcome="Y.02.A.5", timevar="time")
+sim1 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="srs",        ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
+save(sim1, file = "results/cumulative_SRS_ratio4_1000sims.rdata")
+
+sim2 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="sps",        ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
+save(sim2, file = "results/cumulative_SPS_ratio4_1000sims.rdata")
+
+sim3 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered1", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
+save(sim3, file = "results/cumulative_clustered1_ratio4_1000sims.rdata")
+
+sim4 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered2", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
+save(sim4, file = "results/cumulative_clustered2_ratio4_1000sims.rdata")
+
+sim5 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="stratified", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
+save(sim5, file = "results/cumulative_stratified_ratio4_1000sims.rdata")
 
 ######
 ## Aggregate/summarize performance metrics
@@ -43,16 +61,15 @@ sim2 <- sim(nsims=3, cluster=F, cctype="density", samp="srs", ratio=1,
 
 performance(sim1)
 performance(sim2)
+performance(sim3)
+performance(sim4)
+performance(sim5)
 
 ######
-## Save everything and close
+## Close
 ######
 
-save(sim1, file = "results/cumulative_SRS_ratio1_test.rdata")
-save(sim2, file = "results/density_SRS_ratio1_test.rdata")
-
-# Close worker nodes and MPI. This is only for the cluster. try() tells r to ignore it and continue if it fails (which it will, if running on a local computer)
-try(mpi.close.Rslaves())
+# Close MPI. This is only for the cluster. try() tells r to ignore it and continue if it fails (which it will, if running on a local computer)
 try(mpi.quit(), silent=T)
 
 # END

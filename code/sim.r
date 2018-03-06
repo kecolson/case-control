@@ -80,10 +80,17 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     mpi.bcast.Robj2slave(timevar)
     mpi.bcast.Robj2slave(seeds)
     
+    print("sim.r: running sims...")
     
     # Send the work to the worker nodes and run the simulations
     results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, ratio=ratio, data=data, 
-                             exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
+                             exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds)
+    
+    print("sim.r: sims completed. closing workers...")
+    
+    try(mpi.close.Rslaves())
+
+    print("workers closed. Collapsing results....")
     
   } else { # if not on cluster, run these simulations locally
     results <- lapply(index, study, cctype=cctype, samp=samp, ratio=ratio, data=data, 
@@ -95,6 +102,8 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     
   # Collapse est, lower, and upper results; leave samples and model objects in list form in "results" object
   est.lower.upper <- do.call(rbind, lapply(index, function(x) results[[x]][c('est','lower','upper','truth')] ))
+  
+  print("sim.r: Results collapsed. Returning results...")
   
   return(list(est.lower.upper=est.lower.upper))
 }

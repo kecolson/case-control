@@ -18,7 +18,7 @@ performance <- function(sim) {
   print(paste0("Truth = ",truth))
   
   # Summarize distribution of point estimates and CIs
-  hist(ests$est, main="Distribution of Point Estimates", xlab="Point Estimate", breaks=30)
+  # hist(ests$est, main="Distribution of Point Estimates", xlab="Point Estimate", breaks=30)
   
   # Calculate 95% CI coverage - % of calculated CIs that include the true OR
   CIcover <- as.numeric(ests$lower<=truth & ests$upper>=truth)
