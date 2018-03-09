@@ -8,6 +8,7 @@
 # UPDATES: 2/26/2018: CR updated 2-stage clustered design to flexibly handle any outcome frequency
 #          2/27/2018  CR updated 2-stage clustered design to incorporate control:case ratio
 #          2/27/2018 CR initialized main results with NA values and wrapped ccwc/clogit in try()
+#          3/08/2018 CR fixed SRS sampling weights
 ################################################################################################
 
 ####
@@ -62,7 +63,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   if (samp=="srs") { # simple random sample of controls
     
     control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, replace=F),] 
-    control.samp$sampweight <- nrow(allcases)*ratio / nrow(allcontrols)
+    control.samp$sampweight <- 1/(nrow(allcases)*ratio / nrow(allcontrols))
     
   } else if (samp=="sps") {  # simple probability sample of controls with known probability of selection for each individual
     
