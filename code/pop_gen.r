@@ -4,7 +4,9 @@
 # DATE STARTED: 2/20/2018    
 # PURPOSE: Produce an artifical population based on the 2010 California 
 #          American Community Survey data for use in various case control simulations. 
-# UPDATES: [date]: XX
+# UPDATES: 03/13/2018: CL added functions to add different exposure and outcome frequencies
+#                      CL added function to calculate true measure of association and confounding
+#                      for all exposure and outcome frequency combinations
 ################################################################################################
 
 # ASSUMPTIONS
@@ -100,9 +102,10 @@ pop <- pop[,c('cluster','strata','serial', # Survey design variables: HH cluster
               'educ_lesshs','educ_ged','educ_hs','educ_somecollege','educ_associates','educ_bachelors','educ_advdegree')]
 
 # Generate Exposure - Socio-Demographic Patterns Loosely Based on Cigarette Smoking in U.S. (https://www.cdc.gov/tobacco/campaign/tips/resources/data/cigarette-smoking-in-united-states.html)
-baseline_A.5 <- log(0.4)
-set.seed(2)
-pop$A.5 <- rbinom(N, size = 1, prob = expit(baseline_A.5 + 
+exposure_gen <- function(BaselineA){
+  set.seed(2)
+  
+  exposure <- rbinom(N, size = 1, prob = expit(BaselineA + 
                                           (log(1))*pop$black + 
                                           (log(1.1))*pop$asian + 
                                           (log(0.8))*pop$hispanic +
@@ -121,66 +124,147 @@ pop$A.5 <- rbinom(N, size = 1, prob = expit(baseline_A.5 +
                                           (log(0.8))*pop$educ_advdegree))
 
   # Check Exposure Frequency
-  summary(pop$A.5) # 48%
+  print(summary(exposure))
+  return(exposure)
+}
+  
+  
+pop$A.50 <- exposure_gen(log(0.4)) # 48%
+pop$A.20 <- exposure_gen(log(0.094)) # 20%
+pop$A.10 <- exposure_gen(log(0.041)) # 10.3%
+pop$A.05 <- exposure_gen(log(0.019)) # 5.2%
 
 # Generate Outcome as Function of Exposure and Covariates - Socio-Demographic Patterns Loosely Based on Incidence of Lung Cancer in U.S. (https://www.cdc.gov/cancer/lung/statistics/race.htm)
 # Using exponential distribution
-trueRate <- log(2)
-#baseline_hazard <- log(0.00005) # for 50% outcome freq
-baseline_hazard.02 <- log(0.0000012) #for 2% outcome freq
-set.seed(3)
-lambda <- exp(baseline_hazard.02 + 
-              trueRate*pop$A.5 +
-              (log(1.1))*pop$black + 
-              (log(0.9))*pop$asian + 
-              (log(1.1))*pop$hispanic +
-              (log(1))*pop$otherrace + 
-              (log(1.1))*pop$age_25_34 +
-              (log(1.2))*pop$age_35_44 +
-              (log(1.3))*pop$age_45_54 +
-              (log(1.4))*pop$age_55_64 +
-              (log(3))*pop$age_over64 +
-              (log(3))*pop$male +
-              (log(3))*pop$educ_ged +
-              (log(1.1))*pop$educ_hs + 
-              (log(1))*pop$educ_somecollege +
-              (log(0.9))*pop$educ_associates +
-              (log(0.8))*pop$educ_bachelors +
-              (log(0.7))*pop$educ_advdegree)
-pop$time <- rexp(N, lambda)
 
-# Set those with event before 10 years as a case
-pop$Y.02.A.5[pop$time <= 365.25*10] <- 1
-pop$Y.02.A.5[pop$time > 365.25*10] <- 0
+outcome_gen <- function(trueRate = log(2),
+                        BaselineHazard, 
+                        expfreq, # vector of exposure frequency names (format "A.50")
+                        outcomefreq # format "Y.02"
+){
+  a <- length(expfreq) # to get the number of exposure frequencies
+  output <- NULL
+  for(A in 1:a){
+    set.seed(3)
+    lambda <- exp(BaselineHazard[A] + 
+                    trueRate*pop[,expfreq[A]] +
+                    (log(1.1))*pop$black + 
+                    (log(0.9))*pop$asian + 
+                    (log(1.1))*pop$hispanic +
+                    (log(1))*pop$otherrace + 
+                    (log(1.1))*pop$age_25_34 +
+                    (log(1.2))*pop$age_35_44 +
+                    (log(1.3))*pop$age_45_54 +
+                    (log(1.4))*pop$age_55_64 +
+                    (log(3))*pop$age_over64 +
+                    (log(3))*pop$male +
+                    (log(3))*pop$educ_ged +
+                    (log(1.1))*pop$educ_hs + 
+                    (log(1))*pop$educ_somecollege +
+                    (log(0.9))*pop$educ_associates +
+                    (log(0.8))*pop$educ_bachelors +
+                    (log(0.7))*pop$educ_advdegree)
+    set.seed(4)
+    time <- rexp(N, lambda)
+    
+    # Set those with event before 10 years as a case
+    outcome <- rep(NA, N)
+    outcome[time <= 365.25*10] <- 1
+    outcome[time > 365.25*10] <- 0
+    
+    # Set event time for those did not get the event to end of follow up
+    time[outcome == 0] <- 365.25*10
+    
+    # Check Outcome Frequency
+    print(summary(outcome))
+    
+    # Return Outcome and Time
+    newoutput <- cbind(outcome, time)
+    colnames(newoutput) <- c(paste(outcomefreq, expfreq[A], sep = "."), #column name for outcome 
+                             paste("time", outcomefreq, expfreq[A], sep = ".")) # column name for time
+    output <- cbind(output, newoutput)
+  }
+  
+  return(output)
+}
+outcome.20 <- outcome_gen(trueRate = log(2), 
+                          BaselineHazard = c(log(0.0000145), log(0.0000185), log(0.00002), log(0.000021)),
+                          expfreq = c("A.50", "A.20", "A.10", "A.05"), 
+                          outcomefreq = "Y.20")
 
-# Set event time for those did not get the event to end of follow up
-pop$time[pop$Y.02.A.5 == 0] <- 365.25*10
+outcome.10 <- outcome_gen(trueRate = log(2), 
+                          BaselineHazard = c(log(0.0000065), log(0.0000081), log(0.000009), log(0.0000095)),
+                          expfreq = c("A.50", "A.20", "A.10", "A.05"), 
+                          outcomefreq = "Y.10")
 
-  # Check Outcome Frequency
-  summary(pop$Y.02.A.5) # 2%
+outcome.02 <- outcome_gen(trueRate = log(2), 
+                          BaselineHazard = c(log(0.0000012), log(0.0000015), log(0.00000166), log(0.00000176)),
+                          expfreq = c("A.50", "A.20", "A.10", "A.05"), 
+                          outcomefreq = "Y.02")
 
-# Check Fidelity of Exposure/Outcome Relationship in Total Population
-# Logistic Model
-log_mod <- glm(Y.02.A.5 ~ A.5 + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
-                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
+outcome.005 <- outcome_gen(trueRate = log(2), 
+                           BaselineHazard = c(log(0.000000295), log(0.00000036), log(0.0000004), log(0.000000425)),
+                           expfreq = c("A.50", "A.20", "A.10", "A.05"), 
+                           outcomefreq = "Y.005")
 
-summary(log_mod)
-print(pop$trueOR.Y.02.A.5 <- exp(coef(log_mod)[2]))
-# Poisson Model
-pos_mod <- glm(Y.02.A.5 ~ A.5 + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
-                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(time), data=pop, family='poisson')
-summary(pos_mod)
-print(pop$trueIDR.Y.02.A.5 <- exp(coef(pos_mod)[2]))
+# Add the outcome frequencies and time to the population data
+pop <- data.frame(cbind(pop, outcome.20, outcome.10, outcome.02, outcome.005))
 
-# Check for presence of confounding in total population
-# Logistic Model
-logcrude_mod <- glm(Y.02.A.5 ~ A.5, data = pop, family = "binomial")
-summary(logcrude_mod)
-exp(coef(logcrude_mod)) # crude OR = 2.9728 vs. true OR = 1.9495
-# Poisson Model
-poscrude_mod <- glm(Y.02.A.5 ~ A.5, offset = log(time), data=pop, family='poisson')
-summary(poscrude_mod)
-exp(coef(poscrude_mod)) # crude IDR = 2.9422 vs. true IDR = 1.9342
+
+# make nested for loop to check for fidelity of exposure outcome relationship in total population
+# and check for confounding
+
+exposurefreq <- list("A.50", "A.20", "A.10", "A.05")
+outcomefreq <- list("Y.20", "Y.10", "Y.02", "Y.005")
+
+TrueMeasures_OR <- matrix(NA, ncol = length(exposurefreq), nrow = length(outcomefreq))
+TrueMeasures_IDR <- matrix(NA, ncol = length(exposurefreq), nrow = length(outcomefreq))
+rownames(TrueMeasures_OR) <- rownames(TrueMeasures_IDR) <- c("A.50", "A.20", "A.10", "A.05")
+colnames(TrueMeasures_OR) <- colnames(TrueMeasures_IDR) <- c("Y.20", "Y.10", "Y.02", "Y.005")
+
+Crude_OR <- matrix(NA, ncol = length(exposurefreq), nrow = length(outcomefreq))
+Crude_IDR <- matrix(NA, ncol = length(exposurefreq), nrow = length(outcomefreq))
+rownames(Crude_OR) <- rownames(Crude_IDR) <- c("A.50", "A.20", "A.10", "A.05")
+colnames(Crude_OR) <- colnames(Crude_IDR) <- c("Y.20", "Y.10", "Y.02", "Y.005")
+
+for(i in exposurefreq) {
+  for(j in outcomefreq){
+    print(paste(j, i, sep = "."))
+    print(paste("time", j, i, sep = "."))
+    
+    Y <- paste(j, i, sep = ".")
+    A <- i
+    time <- paste("time", j, i, sep = ".")
+    
+    # Check Fidelity of Exposure/Outcome Relationship in Total Population
+    # Logistic Model
+    log_mod <- glm(pop[,Y] ~ pop[,A] + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
+                     educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, data=pop, family='binomial')
+    
+    #print(summary(log_mod))
+    TrueMeasures_OR[i, j] <- exp(coef(log_mod)[2])
+    print(pop[,paste("trueOR", j, i, sep = ".")] <- exp(coef(log_mod)[2]))
+    
+    # Poisson Model
+    pos_mod <- glm(pop[,Y] ~ pop[,A] + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male + 
+                     educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree, offset = log(pop[,time]), data=pop, family='poisson')
+    #print(summary(pos_mod))
+    TrueMeasures_IDR[i, j] <- exp(coef(pos_mod)[2])
+    print(pop[,paste("trueIDR", j, i, sep = ".")] <- exp(coef(pos_mod)[2]))
+    
+    # Check for presence of confounding in total population
+    # Logistic Model
+    logcrude_mod <- glm(pop[,Y] ~ pop[,A], data = pop, family = "binomial")
+    #summary(logcrude_mod)
+    Crude_OR[i,j] <- exp(coef(logcrude_mod)[2])
+    
+    # Poisson Model
+    poscrude_mod <- glm(pop[,Y] ~ pop[,A], offset = log(pop[,time]), data=pop, family='poisson')
+    #summary(poscrude_mod)
+    Crude_IDR[i,j] <- exp(coef(poscrude_mod)[2])
+  }
+}
+
 
 ### KEEP POPULATION FIXED - TRUTH
 
