@@ -10,6 +10,8 @@
 #          2/27/2018 CR initialized main results with NA values and wrapped ccwc/clogit in try()
 #          3/08/2018 CR fixed SRS sampling weights
 #          3/14/2018 CR Added code to expand sample by person weights prior to risk set sampling
+#          3/28/2018: CR normalized/scaled weights for population expansion prior to risks set
+#                     sampling
 ################################################################################################
 
 ####
@@ -151,6 +153,9 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   } else if (cctype=="density") {
     
     # Apply design
+    
+    # Normalize & Scale Control Sampling Weights to Number of Controls in Population
+    control.samp$sampweight = (control.samp$sampweight/sum(control.samp$sampweight))*nrow(allcontrols)
     
     # Combine Cases and Sampled Controls
     presample <- rbind(allcases, control.samp) 
