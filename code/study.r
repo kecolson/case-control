@@ -12,6 +12,7 @@
 #          3/14/2018 CR Added code to expand sample by person weights prior to risk set sampling
 #          3/28/2018: CR normalized/scaled weights for population expansion prior to risks set
 #                     sampling
+#          4/12/2018: EM added extra print statements to help with debugging
 ################################################################################################
 
 ####
@@ -39,15 +40,21 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   
   print(paste0("Running iteration number ",iteration))
   
+  print("Loading packages...")
+  
   # Load packages on each compute node
   library("Epi") # for case-cohort and density sampling designs
   library("survival") # for clogit analysis
   library("dplyr") # for data management
   library("parallel") # for setting seeds
   
+  print("Packages loaded. Setting seed...")
+  
   # Set seed for entire process
   RNGkind("L'Ecuyer-CMRG")
   .Random.seed <- seeds[[iteration]]
+  
+  print("Seed set. Putting variables into standardized names...")
   
   ####### PHASE 1: source of cases and controls -- SRS, complex survey, etc. 
   
@@ -56,12 +63,23 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   data$A <- data[[exposure]]
   data$time <- data[[timevar]]
   
+  print("Variables put in standardized names. Pulling all cases and controls and creating case weights...")
+  
+  print("Data summary:")
+  print(summary(data))
+  
   # Select cases and controls
   allcases    <- data[data$Y==1,]
   allcontrols <- data[data$Y==0,]
 
   # Create Case Weights
   allcases$sampweight <- 1
+  
+  print("Summary of allcases and allcontrols:")
+  print(summary(allcases))
+  print(summary(allcontrols))
+  
+  print("Cases and controls pulled. Case weights created. Entering control selection...")
   
   if (samp=="srs") { # simple random sample of controls
     
@@ -70,11 +88,30 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
   } else if (samp=="sps") {  # simple probability sample of controls with known probability of selection for each individual
     
+    print("Simple probability sample. Generating probability of being selected for each control...")
+    
     allcontrols$sampprob <- runif(nrow(allcontrols), 0, 1) # generate probability of being selected
+    
+    print("summary of allcontrols:")
+    print(summary(allcontrols))
+    
+    print("Probability of selection generated. Sampling based on this probability...") 
+    
     control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    
+    print("summary of control.samp:")
+    print(summary(control.samp))
+    
+    print("Controls sampled. Creating sampling weights....")
+    
     control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    
+    print("Sampling weights created. Removing unneeded columns...") 
+    
     control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
     allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    
+    print("Unneeded columns removed. Proceeding to analysis...")
  
   } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
     
@@ -124,6 +161,8 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   
   ####### PHASE 2: implement case-control - cumulative or density sampled, and analyse the data appropriately
   
+  print("Starting Phase 2. Initialize main results with NA values...")
+  
   # Initialize main results with NA values
   est <- as.numeric(NA)
   lower <- as.numeric(NA)
@@ -133,21 +172,37 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   # CUMULATIVE CASE-CONTROL
   if (cctype=="cumulative") {
     
+    print("Values initialized. rbinding cases and controls into sample data.frame...")
+    
     # Apply design
     sample <- rbind(allcases, control.samp) 
+    
+    print("Combined data frame created. Running model...")
+
+    print("Summary of data to be input to model:")
+    print(summary(sample))
     
     # Run model
     mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male +
                  educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree,
                data=sample, family='binomial', weights = sampweight)
     
+    print("Summary and coef of model:")
+    print(summary(mod))
+    
+    print("Model run successfully. Pulling point estimate and CI...")
+    
     # Pull the main point estimate and CI
     est <- exp(coef(mod)[2])
     lower <- exp(coef(mod)[2] - 1.96*summary(mod)$coefficients[2,2])
     upper <- exp(coef(mod)[2] + 1.96*summary(mod)$coefficients[2,2])
     
+    print("Pulled point estimate and CI. Pulling true parameter...")
+    
     # pull the relevant true parameter
     truth <- data[[paste0("trueOR.",outcome)]][1]
+    
+    print("True parameter pulled. Returning results...")
     
   # DENSITY-SAMPLED CASE-CONTROL
   } else if (cctype=="density") {

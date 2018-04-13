@@ -30,6 +30,14 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   # Bring in data and true parameters
   data <- read.csv("data/population.data.csv", stringsAsFactors = F)
   
+  # Save memory by keeping only variables of interest
+  data <- data[,c('cluster','strata','serial','county','city','puma','cpuma0010',
+		  'white','black','asian','hispanic','otherrace','male',
+		  'age_18_24','age_25_34','age_35_44','age_45_54','age_55_64','age_over64',
+		  'educ_lesshs','educ_ged','educ_hs','educ_somecollege','educ_associates',
+		  'educ_bachelors','educ_advdegree',
+		  exposure, outcome, timevar, paste0("trueOR.",outcome),paste0('trueIDR.',outcome) )]
+  
   # Sample down the dataset for testing purposes
   #data <- data[sample(1:nrow(data), 4000, replace=F),]
 
@@ -99,6 +107,16 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   
   # What comes out of study(): list(est=est, lower=lower, upper=upper, # the point estimate and CI
   #                                 truth=truth) # the true OR or IDR as relevant
+  
+  # Print some things, to help debug
+  print("length of results object to be collapsed:")
+  print(length(results))
+
+  print("summary of results object to be collapsed:")
+  print(summary(results))
+
+  print("head of first object to be collapsed:")
+  print(head(results[[1]]))
     
   # Collapse est, lower, and upper results; leave samples and model objects in list form in "results" object
   est.lower.upper <- do.call(rbind, lapply(index, function(x) results[[x]][c('est','lower','upper','truth')] ))

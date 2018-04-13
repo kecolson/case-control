@@ -9,6 +9,8 @@
 # Clear workspace
 rm(list=ls())
 
+options(warn = 2, show.error.messages=T) # To help with debuggin
+
 ######
 # Load Packages and functions
 ######
@@ -26,7 +28,8 @@ source('code/performance.r')
 
 ######
 ## Run simulations of interest to us
-## Save after each simulation, in case the next one fails. 
+## Save and aggregate/summarize performance metrics after each simulation, in case the next one fails. 
+## 
 ######
 
 # Options:
@@ -42,28 +45,24 @@ source('code/performance.r')
 
 sim1 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="srs",        ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
 save(sim1, file = "results/cumulative_SRS_ratio4_1000sims.rdata")
+performance(sim1)
 
 sim2 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="sps",        ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
 save(sim2, file = "results/cumulative_SPS_ratio4_1000sims.rdata")
+performance(sim2)
 
 sim3 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered1", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
 save(sim3, file = "results/cumulative_clustered1_ratio4_1000sims.rdata")
+performance(sim3)
 
 sim4 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered2", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
 save(sim4, file = "results/cumulative_clustered2_ratio4_1000sims.rdata")
+performance(sim4)
 
 sim5 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="stratified", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
 save(sim5, file = "results/cumulative_stratified_ratio4_1000sims.rdata")
-
-######
-## Aggregate/summarize performance metrics
-######
-
-performance(sim1)
-performance(sim2)
-performance(sim3)
-performance(sim4)
 performance(sim5)
+
 
 ######
 ## Close
