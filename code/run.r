@@ -6,7 +6,7 @@
 # UPDATES: 4/17/2018: CR updated code to write individual performance measures to csv; updated
 #                     exposure/outcome inputs from "A.5" to "A.50" and time input from "time"
 #                     to "time.Y.02.A.50"; updated output files to include exposure and outcome
-#                     frequencies in names
+#                     frequencies in names; added comments for new sampling schemes
 ################################################################################################
 
 # Clear workspace
@@ -42,9 +42,12 @@ source('code/performance.r')
 # samp:
 # "srs" for simple random sample
 # "sps" for simple probability sample with know probability of selection for each individual
+# "exp.ps" for probability sample with sampling probability corresponds to exposure mechanism
 # "clustered1" for single stage clustered design
 # "clustered2" for two-stage clustered design 
 # "stratified" for single stage stratified design
+# "age.stratified" for age stratified design
+# "race.stratified" for race stratified design
 
 sim1 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="srs", ratio=1, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
 save(sim1, file = "results/cumulative_SRS_ratio4_A50_Y02_1000sims.rdata")

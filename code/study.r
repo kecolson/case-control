@@ -13,6 +13,8 @@
 #          3/28/2018: CR normalized/scaled weights for population expansion prior to risks set
 #                     sampling
 #          4/12/2018: EM added extra print statements to help with debugging
+#          4/16/2018: CR adding new sampling schemes related to exposure/covariates (exposure-
+#                     based probability sample, age-stratified, race-stratified)
 ################################################################################################
 
 ####
@@ -25,10 +27,13 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                     # "density" for density-sampled
                   samp   = "srs", # sampling of controls. Options will be:
                     # "srs" for simple random sample
-                    # "sps" for simple probability sample with know probability of selection for each individual
+                    # "sps" for simple probability sample with known probability of selection for each individual
+                    # "exp.ps" for probabiliy sample where sampling probability corresponds to exposure mechanism
                     # "clustered1" for single stage clustered design
                     # "clustered2" for two-stage clustered design 
                     # "stratified" for single stage stratified design
+                    # "age.stratified" for age stratified design
+                    # "race.stratified" for race stratified design
                   ratio = 1, # ratio of controls to cases
                   data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
                   exposure, # name of exposure variable
@@ -113,8 +118,49 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Unneeded columns removed. Proceeding to analysis...")
  
-  } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
+  } else if (samp=="exp.ps") {  # probability sample where sampling probability corresponds exposure mechanism
+ 
+    print("Exposure probability sample. Generating probability of being selected for each control...")
     
+    allcontrols$sampprob <- plogis((log(1))*allcontrols$black + 
+                                    (log(1.1))*allcontrols$asian + 
+                                    (log(0.8))*allcontrols$hispanic +
+                                    (log(0.9))*allcontrols$otherrace + 
+                                    (log(1.1))*allcontrols$age_25_34 +
+                                    (log(1.2))*allcontrols$age_35_44 +
+                                    (log(1.3))*allcontrols$age_45_54 +
+                                    (log(1.4))*allcontrols$age_55_64 +
+                                    (log(3))*allcontrols$age_over64 +
+                                    (log(3))*allcontrols$male +
+                                    (log(3))*allcontrols$educ_ged +
+                                    (log(1.2))*allcontrols$educ_hs + 
+                                    (log(1.1))*allcontrols$educ_somecollege +
+                                    (log(1))*allcontrols$educ_associates +
+                                    (log(0.9))*allcontrols$educ_bachelors +
+                                    (log(0.8))*allcontrols$educ_advdegree) # generate probability of being selected
+    
+    print("summary of allcontrols:")
+    print(summary(allcontrols))
+    
+    print("Probability of selection generated. Sampling based on this probability...") 
+    
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    
+    print("summary of control.samp:")
+    print(summary(control.samp))
+    
+    print("Controls sampled. Creating sampling weights....")
+    
+    control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    
+    print("Sampling weights created. Removing unneeded columns...") 
+    
+    control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
+    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    
+    print("Unneeded columns removed. Proceeding to analysis...")       
+    
+  } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
     cluster <- aggregate(data.frame(popsize = allcontrols$cluster), list(cluster = allcontrols$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
     cluster$cls.sampprob <- cluster$popsize/nrow(allcontrols) # Calculate cluster sampling probability
     cluster.samp <- cluster[sample(1:nrow(cluster), size = round((nrow(allcases)*ratio/mean(table(data$cluster)))/2,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
@@ -156,7 +202,73 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
     rm(control.samp.strata, controls.strata, stratainfo, i) # Remove unneeded objects
   
+  } else if (samp=="age.stratified") {    
+    
+    print("Age stratified sample. Generating probability of being selected for each control...")
+    
+    allcontrols$sampprob[allcontrols$age_18_24==1] <- 1/(sum(allcontrols$age_18_24)/nrow(allcontrols)) # Calculate sampling probabilities proportional to inverse of age group frequency (i.e. rarer age groups are sampled more)
+    allcontrols$sampprob[allcontrols$age_25_34==1] <- 1/(sum(allcontrols$age_25_34)/nrow(allcontrols))
+    allcontrols$sampprob[allcontrols$age_35_44==1] <- 1/(sum(allcontrols$age_35_44)/nrow(allcontrols))
+    allcontrols$sampprob[allcontrols$age_45_54==1] <- 1/(sum(allcontrols$age_45_54)/nrow(allcontrols))
+    allcontrols$sampprob[allcontrols$age_55_64==1] <- 1/(sum(allcontrols$age_55_64)/nrow(allcontrols))
+    allcontrols$sampprob[allcontrols$age_over64==1] <- 1/(sum(allcontrols$age_over64)/nrow(allcontrols))
+    allcontrols$sampprob <- allcontrols$sampprob/sum(allcontrols$sampprob) # Scale sampling probabilities to fractions summing to 1
+ 
+    print("summary of allcontrols:")
+    print(summary(allcontrols))
+    
+    print("Probability of selection generated. Sampling based on this probability...") 
+    
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    
+    print("summary of control.samp:")
+    print(summary(control.samp))
+    
+    print("Controls sampled. Creating sampling weights....")
+    
+    control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    
+    print("Sampling weights created. Removing unneeded columns...") 
+    
+    control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
+    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    
+    print("Unneeded columns removed. Proceeding to analysis...")       
+    
+  } else if (samp=="race.stratified") {    
+    
+    print("Race stratified sample. Generating probability of being selected for each control...")
+    
+    allcontrols$sampprob[allcontrols$white==1] <- 1/(sum(allcontrols$white)/nrow(allcontrols)) # Calculate sampling probabilities proportional to inverse of racial group frequency (i.e. rarer racial groups are sampled more)
+    allcontrols$sampprob[allcontrols$black==1] <- 1/(sum(allcontrols$black)/nrow(allcontrols))
+    allcontrols$sampprob[allcontrols$asian==1] <- 1/(sum(allcontrols$asian)/nrow(allcontrols))
+    allcontrols$sampprob[allcontrols$hispanic==1] <- 1/(sum(allcontrols$hispanic)/nrow(allcontrols))
+    allcontrols$sampprob[allcontrols$otherrace==1] <- 1/(sum(allcontrols$otherrace)/nrow(allcontrols))
+    allcontrols$sampprob <- allcontrols$sampprob/sum(allcontrols$sampprob) # Scale sampling probabilities to fractions summing to 1
+    
+    print("summary of allcontrols:")
+    print(summary(allcontrols))
+    
+    print("Probability of selection generated. Sampling based on this probability...") 
+    
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    
+    print("summary of control.samp:")
+    print(summary(control.samp))
+    
+    print("Controls sampled. Creating sampling weights....")
+    
+    control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    
+    print("Sampling weights created. Removing unneeded columns...") 
+    
+    control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
+    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    
+    print("Unneeded columns removed. Proceeding to analysis...")       
+    
   }
+  
   
   
   ####### PHASE 2: implement case-control - cumulative or density sampled, and analyse the data appropriately
