@@ -3,7 +3,10 @@
 # AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe
 # DATE STARTED: 2/21/2018
 # PURPOSE: Script to run the various case-control simulations
-# UPDATES: [date]: XX
+# UPDATES: 4/17/2018: CR updated code to write individual performance measures to csv; updated
+#                     exposure/outcome inputs from "A.5" to "A.50" and time input from "time"
+#                     to "time.Y.02.A.50"; updated output files to include exposure and outcome
+#                     frequencies in names
 ################################################################################################
 
 # Clear workspace
@@ -43,26 +46,30 @@ source('code/performance.r')
 # "clustered2" for two-stage clustered design 
 # "stratified" for single stage stratified design
 
-sim1 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="srs",        ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
-save(sim1, file = "results/cumulative_SRS_ratio4_1000sims.rdata")
-performance(sim1)
+sim1 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="srs", ratio=1, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+save(sim1, file = "results/cumulative_SRS_ratio4_A50_Y02_1000sims.rdata")
+perf1 <- performance(sim1)
+write.csv(perf1, "results/perf_cumulative_SRS_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim2 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="sps",        ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
-save(sim2, file = "results/cumulative_SPS_ratio4_1000sims.rdata")
-performance(sim2)
+sim2 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="sps", ratio=4, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+save(sim2, file = "results/cumulative_SPS_ratio4_A50_Y02_1000sims.rdata")
+perf2 <- performance(sim2)
+write.csv(perf2, "results/perf_cumulative_SPS_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim3 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered1", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
-save(sim3, file = "results/cumulative_clustered1_ratio4_1000sims.rdata")
-performance(sim3)
+sim3 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered1", ratio=4, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+save(sim3, file = "results/cumulative_clustered1_ratio4_A50_Y02_1000sims.rdata")
+perf3 <- performance(sim3)
+write.csv(perf3, "results/perf_cumulative_clustered1_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim4 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered2", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
-save(sim4, file = "results/cumulative_clustered2_ratio4_1000sims.rdata")
-performance(sim4)
+sim4 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered2", ratio=4, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+save(sim4, file = "results/cumulative_clustered2_ratio4_A50_Y02_1000sims.rdata")
+perf4 <- performance(sim4)
+write.csv(perf4, "results/perf_cumulative_clustered2_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim5 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="stratified", ratio=4, exposure="A.5", outcome="Y.02.A.5", timevar="time")
-save(sim5, file = "results/cumulative_stratified_ratio4_1000sims.rdata")
-performance(sim5)
-
+sim5 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="stratified", ratio=4, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+save(sim5, file = "results/cumulative_stratified_ratio4_A50_Y02_1000sims.rdata")
+perf5 <- performance(sim5)
+write.csv(perf5, "results/perf_cumulative_stratified_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
 ######
 ## Close

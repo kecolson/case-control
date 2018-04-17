@@ -3,7 +3,7 @@
 # AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe
 # DATE STARTED: 2/21/2018
 # PURPOSE: Script to define a function to calculate performance metrics for the simulations
-# UPDATES: [date]: XX
+# UPDATES: 4/17/2018: CR updated code to save & return performance measures as a dataframe
 ################################################################################################
 
 performance <- function(sim) {
@@ -25,7 +25,7 @@ performance <- function(sim) {
   print(paste0(round(mean(CIcover, na.rm=T)*100,5),"% of confidence intervals include the true measure of association."))
   
   # Calculate mean estimate
-  avg <- round(mean(ests$est))
+  avg <- round(mean(ests$est),10)
   print(paste0("Mean estimate = ",avg))
   
   # Calculate Bias - average distance of point estimates away from true OR in repeated simulations
@@ -43,6 +43,11 @@ performance <- function(sim) {
   # Calculate MSE - mean squared error of point estimate of repeated simulations
   MSE <- round(mean((ests$est - truth)^2),10)
   print(paste0("MSE = ",MSE))
+  
+  # Save data frame
+  perf <- data.frame(nrow(ests), round(truth,10), round(mean(CIcover, na.rm=T),10), avg, bias, relbias, variance, MSE)
+  names(perf) <- c("nsims", "truth", "cicover", "mean.est", "bias", "relbias", "var", "mse")
+  return(perf)
 }
 
 # END
