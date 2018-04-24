@@ -15,15 +15,12 @@
 #          4/12/2018: EM added extra print statements to help with debugging
 #          4/16/2018: CR adding new sampling schemes related to exposure/covariates (exposure-
 #                     based probability sample, age-stratified, race-stratified)
-<<<<<<< HEAD
 #          4/24/2018 CR updated sampling and cumulative code to allow for finite control survey
 #                    sample sizes (i.e., argument "svysize") and method of obtaining sufficient
 #                    number of controls when control survey sample size is less than number of
 #                    controls needed.
-=======
 #          4/23/2018: CL added ccwc.weights function and updated function to have density sampling
 #                     designs that use weight expansion or weights in control selection
->>>>>>> 044efbaa9756ef8f048f6ee386e37c93f9effce3
 ################################################################################################
 
 ####
