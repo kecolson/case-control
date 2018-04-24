@@ -15,6 +15,10 @@
 #          4/12/2018: EM added extra print statements to help with debugging
 #          4/16/2018: CR adding new sampling schemes related to exposure/covariates (exposure-
 #                     based probability sample, age-stratified, race-stratified)
+#          4/24/2018 CR updated sampling and cumulative code to allow for finite control survey
+#                    sample sizes (i.e., argument "svysize") and method of obtaining sufficient
+#                    number of controls when control survey sample size is less than number of
+#                    controls needed.
 ################################################################################################
 
 ####
@@ -34,6 +38,14 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                     # "stratified" for single stage stratified design
                     # "age.stratified" for age stratified design
                     # "race.stratified" for race stratified design
+                  svysize = "benchmark", # Size of survey from which controls are sampled
+                    # "benchmark" sufficient respondents to allow for unique controls
+                    # "small" 1000 respondents
+                    # "medium" 5000 respondents
+                    # "large" 15000 respondents
+                  method = "expand", # Method of obtaining controls for when survey size is smaller than number of controls needed
+                    # "expand" expand the sampled controls by their survey weights
+                    # "sample" sample from controls with replacement and with sampling probability proportional to weights
                   ratio = 1, # ratio of controls to cases
                   data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
                   exposure, # name of exposure variable
@@ -67,7 +79,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   data$Y <- data[[outcome]]
   data$A <- data[[exposure]]
   data$time <- data[[timevar]]
-  
+
   print("Variables put in standardized names. Pulling all cases and controls and creating case weights...")
   
   print("Data summary:")
@@ -86,10 +98,20 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   
   print("Cases and controls pulled. Case weights created. Entering control selection...")
   
+  if (svysize=="benchmark") { # Obtain size of survey from svysize argument
+    svysizenum <- nrow(allcases)*ratio
+  } else if (svysize=="small") {
+    svysizenum <- 1000   
+  } else if (svysize=="medium") {  
+    svysizenum <- 5000   
+  } else if (svysize=="large") {  
+    svysizenum <- 15000   
+  }
+  
   if (samp=="srs") { # simple random sample of controls
     
-    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, replace=F),] 
-    control.samp$sampweight <- 1/(nrow(allcases)*ratio / nrow(allcontrols))
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = svysizenum, replace=F),] 
+    control.samp$sampweight <- 1/(nrow(control.samp) / nrow(allcontrols))
     
   } else if (samp=="sps") {  # simple probability sample of controls with known probability of selection for each individual
     
@@ -102,7 +124,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -144,7 +166,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -163,7 +185,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
     cluster <- aggregate(data.frame(popsize = allcontrols$cluster), list(cluster = allcontrols$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
     cluster$cls.sampprob <- cluster$popsize/nrow(allcontrols) # Calculate cluster sampling probability
-    cluster.samp <- cluster[sample(1:nrow(cluster), size = round((nrow(allcases)*ratio/mean(table(data$cluster)))/2,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
+    cluster.samp <- cluster[sample(1:nrow(cluster), size = round((svysizenum/mean(table(data$cluster)))/1.84,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
     control.samp <- allcontrols[allcontrols$cluster %in% cluster.samp[,"cluster"],] # Sample all controls from each of the randomly sampled clusters
     control.samp <- merge(control.samp, cluster.samp, by="cluster") # Merge cluster characteristics with sampled controls
     control.samp$sampweight <- 1/(control.samp$cls.sampprob) # Calculate sampling weight
@@ -175,10 +197,10 @@ study <- function(iteration, # iteration number for indexing runs and seeds
 
     puma <- aggregate(data.frame(popsize = allcontrols$puma), list(puma = allcontrols$puma), length) # Calculate cluster (i.e. PUMA) population size to determine cluster sampling probability (proportional to cluster population size)
     puma$cls.sampprob <- puma$popsize/nrow(allcontrols) # Calculate cluster sampling probability
-    puma.samp <- puma[sample(1:nrow(puma), size = ceiling(sqrt(nrow(allcases)*ratio)), prob = puma$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability
-    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(ceiling(sqrt(nrow(allcases)*ratio)))# Randomly sample controls from each of the selected clusters
+    puma.samp <- puma[sample(1:nrow(puma), size = ceiling(sqrt(svysizenum)/3), prob = puma$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability
+    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(ceiling(sqrt(svysizenum)*3))# Randomly sample controls from each of the selected clusters
     control.samp <- merge(control.samp, puma.samp, by="puma") # Merge cluster characteristics with sampled controls
-    control.samp$sampprob <- ceiling(sqrt(nrow(allcases)*ratio))/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)
+    control.samp$sampprob <- ceiling(sqrt(svysizenum)*3)/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)    
     control.samp$sampweight <- 1/(control.samp$cls.sampprob*control.samp$sampprob) # Calculate Sampling Weight
     control.samp <- subset(control.samp, select = -c(popsize,cls.sampprob, sampprob)) # Remove unneeded columns
     control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
@@ -188,7 +210,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     allcontrols$strata2 <- as.numeric(cut(allcontrols$county, unique(quantile(allcontrols$county,seq(0,1,.1))), include.lowest=TRUE)) # Split counties into 8 strata
     stratainfo <- data.frame(table(allcontrols$strata2)) # Create dataframe for strata info for calculating sampling weights later
-    stratainfo$size <- round((stratainfo$Freq/nrow(allcontrols))*(nrow(allcases)*ratio)) # Calculate sample size for each strata that is proportional to strata size
+    stratainfo$size <- round((stratainfo$Freq/nrow(allcontrols))*(svysizenum)) # Calculate sample size for each strata that is proportional to strata size
     colnames(stratainfo) <- c("strata2", "stratasize", "stratasampsize") # Rename strata data colunms for merging with sampled controls
     control.samp <- allcontrols[0,] # Create empty data.frame for samples
     for(i in 1:length(unique(allcontrols$strata2))) { # Sample controls proportional to strata size
@@ -219,7 +241,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -251,7 +273,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = nrow(allcases)*ratio, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- allcontrols[sample(1:nrow(allcontrols), size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -281,15 +303,46 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   upper <- as.numeric(NA)
   truth <- as.numeric(NA)
   
-  # CUMULATIVE CASE-CONTROL
+  # CUMULATIVE CASE-CONTROL - start here START HERE
   if (cctype=="cumulative") {
     
-    print("Values initialized. rbinding cases and controls into sample data.frame...")
+    print("Values initialized. Processing Controls...")
+    
+    if (nrow(control.samp) < nrow(allcases)*ratio & method=="expand") { # Obtain sufficient number of controls 
+
+      print("Expanding Control Sample to obtain sufficient controls for study design...")
+      
+      # Normalize & Scale Control Sampling Weights to Number of Controls Needed for Design
+      control.samp$sampweight = (control.samp$sampweight/sum(control.samp$sampweight))*(nrow(allcontrols))
+      
+      # Expand Control Sample using sampling weights
+      control.samp.expnd <- control.samp[rep(row.names(control.samp),round(control.samp$sampweight,0)),]
+      
+      # Sample Controls
+      new.control.samp <- control.samp.expnd[sample(1:nrow(control.samp.expnd), size = nrow(allcases)*ratio, replace=F),]
+      # Clear Sampling Weights
+      new.control.samp$sampweight <- 1
+      
+      } else if (nrow(control.samp) < nrow(allcases)*ratio & method=="sample") {
+      
+        print("Sampling from control sample with replacement to obtain sufficient controls for study design...")
+        
+        # Sample Controls with replacement and sampling probability proportional to weights
+        new.control.samp <- control.samp[sample(1:nrow(control.samp), size = nrow(allcases)*ratio, prob=control.samp$sampweight, replace=T),]
+        
+        # Clear Sampling Weights
+        new.control.samp$sampweight <- 1
+
+      } else if (nrow(control.samp) >= nrow(allcases)*ratio) {
+        
+        print("Sufficient controls sampled, no expansion or sampling with replacement needed...")
+        
+      }
     
     # Apply design
-    sample <- rbind(allcases, control.samp) 
+    sample <- rbind(allcases, new.control.samp) 
     
-    print("Combined data frame created. Running model...")
+    print("Combined case/control data frame created. Running model...")
 
     print("Summary of data to be input to model:")
     print(summary(sample))
