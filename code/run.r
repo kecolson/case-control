@@ -7,6 +7,7 @@
 #                     exposure/outcome inputs from "A.5" to "A.50" and time input from "time"
 #                     to "time.Y.02.A.50"; updated output files to include exposure and outcome
 #                     frequencies in names; added comments for new sampling schemes
+#          4/23/2018: CL added code to source in ccwc.weights function
 ################################################################################################
 
 # Clear workspace
@@ -23,8 +24,9 @@ library("Epi") # for case-cohort and density sampling designs
 library("survival") # for clogit analysis
 library("dplyr") # for data management operations
 
-# Source the study, sim, and perfomance functions
+# Source the study, ccwc.weights, sim, and perfomance functions
 source('code/study.r')
+source('code/ccwc.weights.r')
 source('code/sim.r')
 source('code/performance.r')
 
