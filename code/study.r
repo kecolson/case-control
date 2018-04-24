@@ -323,8 +323,12 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       # Sample Controls
       new.control.samp <- control.samp.expnd[sample(1:nrow(control.samp.expnd), size = nrow(allcases)*ratio, replace=F),]
+      
       # Clear Sampling Weights
       new.control.samp$sampweight <- 1
+      
+      # Combine Cases/Controls
+      sample <- rbind(allcases, new.control.samp) 
       
       } else if (nrow(control.samp) < nrow(allcases)*ratio & method=="sample") {
       
@@ -336,14 +340,20 @@ study <- function(iteration, # iteration number for indexing runs and seeds
         # Clear Sampling Weights
         new.control.samp$sampweight <- 1
 
+        # Combine Cases/Controls
+        sample <- rbind(allcases, new.control.samp) 
+        
       } else if (nrow(control.samp) >= nrow(allcases)*ratio) {
         
         print("Sufficient controls sampled, no expansion or sampling with replacement needed...")
         
+        # Combine Cases/Controls
+        sample <- rbind(allcases, control.samp) 
+        
       }
     
     # Apply design
-    sample <- rbind(allcases, new.control.samp) 
+
     
     print("Combined case/control data frame created. Running model...")
 

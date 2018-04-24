@@ -3,13 +3,13 @@
 # AUTHORS: Ellie Matthay, Catherine Li, Chris Rowe
 # DATE STARTED: 2/21/2018
 # PURPOSE: Define a function that will parallelize and run the different case-control simulations
-# UPDATES: [date]: XX
+# UPDATES: 4/24/2018: CR add svysize and method study.r arguments throughout.
 ################################################################################################
 
 
 sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 500-1000 for initial, 2000 for final results
                 cluster, # Set to TRUE to run on grizzlybear; set to FALSE to run locally
-                cctype, samp, ratio, exposure, outcome, timevar) {
+                cctype, samp, svysize, method, ratio, exposure, outcome, timevar) {
   
   # For testing: nsims <- 3; cluster <- F; cctype <- "cumulative"; samp <- "srs"; ratio <- 1; exposure <- "A.5"; outcome <- "Y.02.A.5"; timevar <- "time"
   
@@ -22,9 +22,9 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   
   # Set Working Directory
   if (cluster==F) {
-    #setwd("~/Documents/PhD/Ahern GSR/Case Control Simulation") # Chris's directory
+    setwd("~/Documents/GitHub/case-control")# Chris's directory
     #setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
-    setwd("C:/Users/Catherine/Documents/GitHub/case-control_master") # Catherine's directory
+    #setwd("C:/Users/Catherine/Documents/GitHub/case-control_master") # Catherine's directory
   }
 
   # Bring in data and true parameters
@@ -81,6 +81,8 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     mpi.bcast.Robj2slave(study)
     mpi.bcast.Robj2slave(cctype)
     mpi.bcast.Robj2slave(samp)
+    mpi.bcast.Robj2slave(svysize)
+    mpi.bcast.Robj2slave(method)
     mpi.bcast.Robj2slave(ratio)
     mpi.bcast.Robj2slave(data)
     mpi.bcast.Robj2slave(exposure)
@@ -91,7 +93,7 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     print("sim.r: running sims...")
     
     # Send the work to the worker nodes and run the simulations
-    results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, ratio=ratio, data=data, 
+    results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, svysize=svysize, method=method, ratio=ratio, data=data, 
                              exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds)
     
     print("sim.r: sims completed. closing workers...")
@@ -101,7 +103,7 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     print("workers closed. Collapsing results....")
     
   } else { # if not on cluster, run these simulations locally
-    results <- lapply(index, study, cctype=cctype, samp=samp, ratio=ratio, data=data, 
+    results <- lapply(index, study, cctype=cctype, samp=samp, svysize=svysize, method=method, ratio=ratio, data=data, 
                       exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
   }
   
