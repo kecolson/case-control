@@ -15,6 +15,8 @@
 #          4/12/2018: EM added extra print statements to help with debugging
 #          4/16/2018: CR adding new sampling schemes related to exposure/covariates (exposure-
 #                     based probability sample, age-stratified, race-stratified)
+#          4/23/2018: CL added ccwc.weights function and updated function to have density sampling
+#                     designs that use weight expansion or weights in control selection
 ################################################################################################
 
 ####
@@ -24,7 +26,8 @@
 study <- function(iteration, # iteration number for indexing runs and seeds
                   cctype = "cumulative", # case control type. Options will be:
                     # "cumulative"  for cumulative case-control
-                    # "density" for density-sampled
+                    # "density expansion" for density-sampled with weight expansion
+                    # "density weights" for density-sampled with weights in control selection
                   samp   = "srs", # sampling of controls. Options will be:
                     # "srs" for simple random sample
                     # "sps" for simple probability sample with known probability of selection for each individual
@@ -316,8 +319,8 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("True parameter pulled. Returning results...")
     
-  # DENSITY-SAMPLED CASE-CONTROL
-  } else if (cctype=="density") {
+  # DENSITY-SAMPLED CASE-CONTROL - WEIGHT EXPANSION
+  } else if (cctype=="density expansion") {
     
     # Apply design
     
@@ -331,7 +334,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     presample.expnd <- presample[rep(row.names(presample),round(presample$sampweight,0)),]
     
     # Risk Set Sampling
-    try(suppressWarnings(sample <- ccwc(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
+    try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
                    #match=list(), # use this argument for variables we want to match on
       include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                    age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
@@ -350,7 +353,35 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     # pull the relevant true parameter
     truth <- data[[paste0("trueIDR.",outcome)]][1]
+  
+  # DENSITY-SAMPLED CASE-CONTROL - WEIGHTS IN CONTROL SELECTION 
+  } else if (cctype == "density weights") {
     
+    # Apply Design
+    
+    #Combine Cases and Selected Controls
+    presample <- rbind(allcases, control.samp) 
+    
+    # Risk Set Sampling with Weights
+    try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights = sampweight,
+                                                #match=list(), # use this argument for variables we want to match on
+                                                include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
+                                                             age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
+                                                             educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE)))
+    
+    # Run model - DOUBLE CHECK TO SEE IF WEIGHTS NEED TO BE INCLUDED IN REGRESSION
+    try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                        male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                        strata(Set),
+                      data = sample, method = "efron"))
+    
+    # Pull the main point estimate and CI
+    est <- exp(coef(mod)[1])
+    lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
+    upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
+    
+    # pull the relevant true parameter
+    truth <- data[[paste0("trueIDR.",outcome)]][1]
   }
   
   # Return the sampled data, model object, point estimate, and CI
