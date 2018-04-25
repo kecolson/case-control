@@ -30,8 +30,7 @@
 study <- function(iteration, # iteration number for indexing runs and seeds
                   cctype = "cumulative", # case control type. Options will be:
                     # "cumulative"  for cumulative case-control
-                    # "density expansion" for density-sampled with weight expansion
-                    # "density weights" for density-sampled with weights in control selection
+                    # "density" for density-sampled (nested case-control design)
                   samp   = "srs", # sampling of controls. Options will be:
                     # "srs" for simple random sample
                     # "sps" for simple probability sample with known probability of selection for each individual
@@ -49,6 +48,8 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                   method = "expand", # Method of obtaining controls for when survey size is smaller than number of controls needed
                     # "expand" expand the sampled controls by their survey weights
                     # "sample" sample from controls with replacement and with sampling probability proportional to weights
+                    # "model"  weights are incoporated into the model
+                    # "unweighted"  weights from survey are not considered at all
                   ratio = 1, # ratio of controls to cases
                   data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
                   exposure, # name of exposure variable
@@ -306,7 +307,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   upper <- as.numeric(NA)
   truth <- as.numeric(NA)
   
-  # CUMULATIVE CASE-CONTROL - start here START HERE
+  # CUMULATIVE CASE-CONTROL - START HERE
   if (cctype=="cumulative") {
     
     print("Values initialized. Processing Controls...")
@@ -383,68 +384,122 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     print("True parameter pulled. Returning results...")
     
   # DENSITY-SAMPLED CASE-CONTROL - WEIGHT EXPANSION
-  } else if (cctype=="density expansion") {
+  } else if (cctype=="density") {
+    if (method=="expand"){
+      # Apply design
+      
+      # Normalize & Scale Control Sampling Weights to Number of Controls in Population
+      control.samp$sampweight = (control.samp$sampweight/sum(control.samp$sampweight))*nrow(allcontrols)
+      
+      # Combine Cases and Sampled Controls
+      presample <- rbind(allcases, control.samp) 
+      
+      # Expand Sample Using Individual Person Weights
+      presample.expnd <- presample[rep(row.names(presample),round(presample$sampweight,0)),]
+      
+      # Risk Set Sampling
+      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
+                                                  #match=list(), # use this argument for variables we want to match on
+                                                  include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
+                                                               age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
+                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample.expnd, silent=FALSE)))
+      
+      # Run model
+      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                          strata(Set),
+                        data = sample, method = "efron"))
+      
+      # Pull the main point estimate and CI
+      est <- exp(coef(mod)[1])
+      lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
+      upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
+      
+      # pull the relevant true parameter
+      truth <- data[[paste0("trueIDR.",outcome)]][1]
+      
+    } else if (method=="sample") {
+      # Apply Design
+      
+      #Combine Cases and Selected Controls
+      presample <- rbind(allcases, control.samp) 
+      
+      # Risk Set Sampling with Weights
+      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights = sampweight,
+                                                  #match=list(), # use this argument for variables we want to match on
+                                                  include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
+                                                               age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
+                                                               educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE)))
+      
+      # Run model
+      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                          strata(Set),
+                        data = sample, method = "efron"))
+      
+      # Pull the main point estimate and CI
+      est <- exp(coef(mod)[1])
+      lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
+      upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
+      
+      # pull the relevant true parameter
+      truth <- data[[paste0("trueIDR.",outcome)]][1]
+      
+    } else if (method=="model") {
+      
+      #Combine Cases and Selected Controls
+      presample <- rbind(allcases, control.samp)
+      
+      # Risk Set Sampling
+      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
+                                                  #match=list(), # use this argument for variables we want to match on
+                                                  include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
+                                                               age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
+                                                               educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE)))
+      
+      # Run model
+      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                          strata(Set), weights = sampweight,
+                        data = sample, method = "efron"))
+      
+      # Pull the main point estimate and CI
+      est <- exp(coef(mod)[1])
+      lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
+      upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
+      
+      # pull the relevant true parameter
+      truth <- data[[paste0("trueIDR.",outcome)]][1]
+      
+      
+    } else if (method=="unweighted") {
+      
+      #Combine Cases and Selected Controls
+      presample <- rbind(allcases, control.samp)
+      
+      # Risk Set Sampling
+      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
+                                                  #match=list(), # use this argument for variables we want to match on
+                                                  include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
+                                                               age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
+                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample, silent=FALSE)))
+      
+      # Run model
+      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                          strata(Set),
+                        data = sample, method = "efron"))
+      
+      # Pull the main point estimate and CI
+      est <- exp(coef(mod)[1])
+      lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
+      upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
+      
+      # pull the relevant true parameter
+      truth <- data[[paste0("trueIDR.",outcome)]][1]
+      
+    }
     
-    # Apply design
-    
-    # Normalize & Scale Control Sampling Weights to Number of Controls in Population
-    control.samp$sampweight = (control.samp$sampweight/sum(control.samp$sampweight))*nrow(allcontrols)
-    
-    # Combine Cases and Sampled Controls
-    presample <- rbind(allcases, control.samp) 
-    
-    # Expand Sample Using Individual Person Weights
-    presample.expnd <- presample[rep(row.names(presample),round(presample$sampweight,0)),]
-    
-    # Risk Set Sampling
-    try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
-                   #match=list(), # use this argument for variables we want to match on
-      include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
-                   age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                   educ_associates,educ_bachelors,educ_advdegree), data=presample.expnd, silent=FALSE)))
-    
-    # Run model
-    try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
-                    male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
-                    strata(Set),
-                  data = sample, method = "efron"))
-
-    # Pull the main point estimate and CI
-    est <- exp(coef(mod)[1])
-    lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
-    upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
-    
-    # pull the relevant true parameter
-    truth <- data[[paste0("trueIDR.",outcome)]][1]
-  
-  # DENSITY-SAMPLED CASE-CONTROL - WEIGHTS IN CONTROL SELECTION 
-  } else if (cctype == "density weights") {
-    
-    # Apply Design
-    
-    #Combine Cases and Selected Controls
-    presample <- rbind(allcases, control.samp) 
-    
-    # Risk Set Sampling with Weights
-    try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights = sampweight,
-                                                #match=list(), # use this argument for variables we want to match on
-                                                include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
-                                                             age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                             educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE)))
-    
-    # Run model - DOUBLE CHECK TO SEE IF WEIGHTS NEED TO BE INCLUDED IN REGRESSION
-    try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
-                        male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
-                        strata(Set),
-                      data = sample, method = "efron"))
-    
-    # Pull the main point estimate and CI
-    est <- exp(coef(mod)[1])
-    lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
-    upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
-    
-    # pull the relevant true parameter
-    truth <- data[[paste0("trueIDR.",outcome)]][1]
   }
   
   # Return the sampled data, model object, point estimate, and CI
