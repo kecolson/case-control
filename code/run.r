@@ -9,6 +9,7 @@
 #                     frequencies in names; added comments for new sampling schemes
 #          4/23/2018: CL added code to source in ccwc.weights function
 #          4/24/2018: Updated arguments to include svysize and method
+#          5/1/2018:  ECM minor edits to make code compatible with cluster
 ################################################################################################
 
 # Clear workspace
@@ -27,7 +28,7 @@ library("dplyr") # for data management operations
 
 # Source the study, ccwc.weights, sim, and perfomance functions
 source('code/study.r')
-source('code/ccwc.weights.r')
+source('code/ccwc.weights.R')
 source('code/sim.r')
 source('code/performance.r')
 

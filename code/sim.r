@@ -11,7 +11,7 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
                 cluster, # Set to TRUE to run on grizzlybear; set to FALSE to run locally
                 cctype, samp, svysize, method, ratio, exposure, outcome, timevar) {
   
-  # For testing: nsims <- 3; cluster <- F; cctype <- "cumulative"; samp <- "srs"; ratio <- 1; exposure <- "A.5"; outcome <- "Y.02.A.5"; timevar <- "time"
+  # For testing: nsims <- 3; cluster <- F; cctype <- "cumulative"; samp <- "exp.ps"; svysize <- "small"; method <- "expand"; ratio <- 1; exposure <- "A.50"; outcome <- "Y.02.A.50"; timevar <- "time.Y.02.A.50"
   
   library("parallel") # For setting random seeds
   library("Epi") # for density sampling design
