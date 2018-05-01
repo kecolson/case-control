@@ -21,6 +21,9 @@
 #                    controls needed.
 #          4/23/2018: CL added ccwc.weights function and updated function to have density sampling
 #                     designs that use weight expansion or weights in control selection
+#          4/25/2018: CL updated density sampling designs to include 4 different methods (expand, 
+#                     sample, model, unweighted)
+#		   4/26/2018: CL updated cumulative sampling designs to include model and unweighted methods
 ################################################################################################
 
 ####
@@ -344,13 +347,30 @@ study <- function(iteration, # iteration number for indexing runs and seeds
         # Combine Cases/Controls
         sample <- rbind(allcases, new.control.samp) 
         
-      } else if (nrow(control.samp) >= nrow(allcases)*ratio) {
+      } else if (nrow(control.samp) >= nrow(allcases)*ratio) { # if this is the case, wouldn't the "model" method be used everytime the survey size > # cases?
         
         print("Sufficient controls sampled, no expansion or sampling with replacement needed...")
         
         # Combine Cases/Controls
         sample <- rbind(allcases, control.samp) 
         
+      } else if (method=="model") {
+
+      	print("No control sampling, weights will be accounted for in analysis...")
+
+      	# Combine Cases/Controls
+      	sample <- rbind(allcases, control.samp)
+
+      } else if (method=="unweighted") {
+
+      	print("Survey weights removed for unweighted analysis...")
+
+      	# Make all control weights 1
+      	control.samp$sampweight <- 1
+
+      	# Combine Cases/Controls
+        sample <- rbind(allcases, control.samp)
+
       }
     
     # Apply design
