@@ -191,9 +191,10 @@ ccwc.weights <-function(entry=0, # time of entry to follow up
         fr[(nn+1):(nn+ncase)] <- 1
         fr[(nn+ncase+1):newnn] <- 0
         pr[(nn+1):(nn+ncase)] <- (1:n)[case]
-        pr[(nn+ncase+1):(newnn)] <-
-          sample((1:n)[noncase], size=ncont, replace = TRUE, #Should replace be F or T??
-                 prob = noncaseweights) #added sampling weights here
+        pr[(nn+ncase+1):(newnn)] <- ifelse(is.null(weights), 
+                                           sample((1:n)[noncase], size=ncont, replace = FALSE), #Replace is FALSE is no weights passed in
+                                           sample((1:n)[noncase], size=ncont, replace = TRUE, #Replace is TRUE if weights passed in
+                                                  prob = noncaseweights)) #added sampling weights here
         nn <- newnn
       }
       else {
