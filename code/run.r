@@ -15,7 +15,7 @@
 # Clear workspace
 rm(list=ls())
 
-options(warn = 2, show.error.messages=T) # To help with debuggin
+#options(warn = 2, show.error.messages=T) # To help with debugging
 
 ######
 # Load Packages and functions

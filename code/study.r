@@ -67,7 +67,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   
   print(paste0("Running iteration number ",iteration))
   
-  print("Loading packages...")
+  print("Loading packages and ccwc.weights() function ...")
   
   # Load packages on each compute node
   library("Epi") # for case-cohort and density sampling designs
@@ -75,7 +75,9 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   library("dplyr") # for data management
   library("parallel") # for setting seeds
   
-  print("Packages loaded. Setting seed...")
+  source('code/ccwc.weights.R')
+  
+  print("Packages and function loaded. Setting seed...")
   
   # Set seed for entire process
   RNGkind("L'Ecuyer-CMRG")
@@ -444,11 +446,11 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       print("Expansion complete. Running ccwc...")
       
       # Risk Set Sampling
-      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL,
+      try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL,
                                                   #match=list(), # use this argument for variables we want to match on
                                                   include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                                                                age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample.expnd, silent=FALSE)))
+                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample.expnd, silent=FALSE))
       
       print("ccwc complete. Running unweighted model...")
       
@@ -476,11 +478,11 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       rm(allcases)
       
       # Risk Set Sampling with Weights
-      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights = sampweight,
+      try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights = sampweight,
                                                   #match=list(), # use this argument for variables we want to match on
                                                   include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                                                                age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                               educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE)))
+                                                               educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE))
       
       print("ccwc complete. Running unweighted model...")
       
@@ -509,11 +511,11 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       rm(allcases)
       
       # Risk Set Sampling
-      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL,
+      try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL,
                                                   #match=list(), # use this argument for variables we want to match on
                                                   include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                                                                age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                               educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE)))
+                                                               educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE))
       
       print("ccwc complete. Running weighted model...")
       
@@ -541,11 +543,11 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       rm(allcases)
       
       # Risk Set Sampling
-      try(suppressWarnings(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
+      try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
                                                   #match=list(), # use this argument for variables we want to match on
                                                   include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
                                                                age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample, silent=FALSE)))
+                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample, silent=FALSE))
       
       print("ccwc complete. Running unweighted model...")
       
