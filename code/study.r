@@ -27,6 +27,7 @@
 #          5/1/2018: CR updated code so control weights are always rescaled to sum to number of controls
 #                    in population; updated code to remove data, allcases, and allcontrols dataframes
 #                    when not needed.
+#          6/3/2018: CR updated cumulative code analysis methods (e.g., expand, sample, etc.)
 ################################################################################################
 
 ####
@@ -342,7 +343,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Values initialized. Processing Controls...")
     
-    if (nrow(control.samp) < Ncases*ratio & method=="expand") { # Obtain sufficient number of controls 
+    if (method=="expand") { # Obtain sufficient number of controls 
 
       print("Expanding Control Sample to obtain sufficient controls for study design...")
       
@@ -358,7 +359,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       # Combine Cases/Controls
       sample <- rbind(allcases, new.control.samp) 
       
-    } else if (nrow(control.samp) < Ncases*ratio & method=="sample") {
+    } else if (method=="sample") {
       
       print("Sampling from control sample with replacement to obtain sufficient controls for study design...")
         
@@ -370,13 +371,6 @@ study <- function(iteration, # iteration number for indexing runs and seeds
 
       # Combine Cases/Controls
       sample <- rbind(allcases, new.control.samp) 
-      
-    } else if (nrow(control.samp) >= Ncases*ratio) { # if this is the case, wouldn't the "model" method be used everytime the survey size > # cases?
-      
-      print("Sufficient controls sampled, no expansion or sampling with replacement needed...")
-      
-      # Combine Cases/Controls
-      sample <- rbind(allcases, control.samp) 
       
     } else if (method=="model") {
 
