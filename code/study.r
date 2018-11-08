@@ -28,6 +28,11 @@
 #                    in population; updated code to remove data, allcases, and allcontrols dataframes
 #                    when not needed.
 #          6/3/2018: CR updated cumulative code analysis methods (e.g., expand, sample, etc.)
+#          11/7/2018: CR Modified density model and unweighted methods to risk-set sample only 
+#                     controls, not cases and controls; added survey sampling design where
+#                     exposed controls sampled with probability 0.75, unexposed controls sampled
+#                     with 0.25; added function argument allowing for cases to be included in
+#                     survey; capture SE as part of results
 ################################################################################################
 
 ####
@@ -42,6 +47,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                     # "srs" for simple random sample
                     # "sps" for simple probability sample with known probability of selection for each individual
                     # "exp.ps" for probabiliy sample where sampling probability corresponds to exposure mechanism
+                    # "exp.ps2" for probability sample where exposed have sampling probability of 0.75 and unexposed have sampling probability of 0.25
                     # "clustered1" for single stage clustered design
                     # "clustered2" for two-stage clustered design 
                     # "stratified" for single stage stratified design
@@ -52,6 +58,8 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                     # "small" 1000 respondents
                     # "medium" 5000 respondents
                     # "large" 15000 respondents
+                  svycase = FALSE, # Cases are excluded from survey used to obtain controls
+                    # TRUE, cases are included in survey used to obtain controls
                   method = "expand", # Method of obtaining controls for when survey size is smaller than number of controls needed
                     # "expand" expand the sampled controls by their survey weights
                     # "sample" sample from controls with replacement and with sampling probability proportional to weights
@@ -111,9 +119,6 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     truth <- data[[paste0("trueIDR.",outcome)]][1]
   }
   
-  # Remove Full Dataset - No Longer Needed
-  rm(data)
-  
   # Extract number of cases and controls
   Ncases <- nrow(allcases)
   Ncontrols <- nrow(allcontrols)
@@ -137,23 +142,38 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     svysizenum <- 15000   
   }
   
+  if (svycase==TRUE) { # Determine whether cases should be included or excluded from survey from svycase argument
+    svypop <- data # Cases included in survey
+  } else if (svycase==FALSE) { 
+    svypop <- allcontrols # Cases excluded from survey   
+  }
+    
+    # Generate Survey Population Size
+    Nsvypop <- nrow(svypop)
+    
+    # Remove Full Dataset - No Longer Needed
+    rm(data)
+    
+    # Remove allcontrols dataframe - no longer needed
+    rm(allcontrols)  
+    
   if (samp=="srs") { # simple random sample of controls
     
-    control.samp <- allcontrols[sample(1:Ncontrols, size = svysizenum, replace=F),] 
-    control.samp$sampweight <- 1/(nrow(control.samp)/Ncontrols)
+    control.samp <- svypop[sample(1:Nsvypop, size = svysizenum, replace=F),] 
+    control.samp$sampweight <- 1/(nrow(control.samp)/Nsvypop)
     
   } else if (samp=="sps") {  # simple probability sample of controls with known probability of selection for each individual
     
     print("Simple probability sample. Generating probability of being selected for each control...")
     
-    allcontrols$sampprob <- runif(Ncontrols, 0, 1) # generate probability of being selected
+    svypop$sampprob <- runif(Nsvypop, 0, 1) # generate probability of being selected
     
-    print("summary of allcontrols:")
-    print(summary(allcontrols))
+    print("summary of svypop:")
+    print(summary(svypop))
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:Ncontrols, size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- svypop[sample(1:Nsvypop, size = svysizenum, prob = svypop$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -165,7 +185,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     print("Sampling weights created. Removing unneeded columns...") 
     
     control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
-    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    svypop <- subset(svypop, select = -sampprob) # Remove unneeded column 
     
     print("Unneeded columns removed. Proceeding to analysis...")
  
@@ -173,29 +193,29 @@ study <- function(iteration, # iteration number for indexing runs and seeds
  
     print("Exposure probability sample. Generating probability of being selected for each control...")
     
-    allcontrols$sampprob <- plogis((log(1))*allcontrols$black + 
-                                    (log(1.1))*allcontrols$asian + 
-                                    (log(0.8))*allcontrols$hispanic +
-                                    (log(0.9))*allcontrols$otherrace + 
-                                    (log(1.1))*allcontrols$age_25_34 +
-                                    (log(1.2))*allcontrols$age_35_44 +
-                                    (log(1.3))*allcontrols$age_45_54 +
-                                    (log(1.4))*allcontrols$age_55_64 +
-                                    (log(3))*allcontrols$age_over64 +
-                                    (log(3))*allcontrols$male +
-                                    (log(3))*allcontrols$educ_ged +
-                                    (log(1.2))*allcontrols$educ_hs + 
-                                    (log(1.1))*allcontrols$educ_somecollege +
-                                    (log(1))*allcontrols$educ_associates +
-                                    (log(0.9))*allcontrols$educ_bachelors +
-                                    (log(0.8))*allcontrols$educ_advdegree) # generate probability of being selected
+    svypop$sampprob <- plogis((log(1))*svypop$black + 
+                                    (log(1.1))*svypop$asian + 
+                                    (log(0.8))*svypop$hispanic +
+                                    (log(0.9))*svypop$otherrace + 
+                                    (log(1.1))*svypop$age_25_34 +
+                                    (log(1.2))*svypop$age_35_44 +
+                                    (log(1.3))*svypop$age_45_54 +
+                                    (log(1.4))*svypop$age_55_64 +
+                                    (log(3))*svypop$age_over64 +
+                                    (log(3))*svypop$male +
+                                    (log(3))*svypop$educ_ged +
+                                    (log(1.2))*svypop$educ_hs + 
+                                    (log(1.1))*svypop$educ_somecollege +
+                                    (log(1))*svypop$educ_associates +
+                                    (log(0.9))*svypop$educ_bachelors +
+                                    (log(0.8))*svypop$educ_advdegree) # generate probability of being selected
     
-    print("summary of allcontrols:")
-    print(summary(allcontrols))
+    print("summary of svypop:")
+    print(summary(svypop))
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:Ncontrols, size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- svypop[sample(1:Nsvypop, size = svysizenum, prob = svypop$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -207,15 +227,42 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     print("Sampling weights created. Removing unneeded columns...") 
     
     control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
-    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    svypop <- subset(svypop, select = -sampprob) # Remove unneeded column 
+    
+    print("Unneeded columns removed. Proceeding to analysis...")       
+
+  } else if (samp=="exp.ps2") {  # for probability sample where exposed have sampling probability of 0.75 and unexposed have sampling probability of 0.25
+    
+    print("Exposure probability sample. Generating probability of being selected for each control...")
+    
+    svypop$sampprob <- ifelse(svypop$A==1,0.75,0.25)
+
+    print("summary of svypop:")
+    print(summary(svypop))
+    
+    print("Probability of selection generated. Sampling based on this probability...") 
+    
+    control.samp <- svypop[sample(1:Nsvypop, size = svysizenum, prob = svypop$sampprob, replace=F),] # Sample control units
+    
+    print("summary of control.samp:")
+    print(summary(control.samp))
+    
+    print("Controls sampled. Creating sampling weights....")
+    
+    control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    
+    print("Sampling weights created. Removing unneeded columns...") 
+    
+    control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
+    svypop <- subset(svypop, select = -sampprob) # Remove unneeded column 
     
     print("Unneeded columns removed. Proceeding to analysis...")       
     
   } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
-    cluster <- aggregate(data.frame(popsize = allcontrols$cluster), list(cluster = allcontrols$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
-    cluster$cls.sampprob <- cluster$popsize/Ncontrols # Calculate cluster sampling probability
-    cluster.samp <- cluster[sample(1:nrow(cluster), size = round((svysizenum/mean(table(allcontrols$cluster)))/1.84,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
-    control.samp <- allcontrols[allcontrols$cluster %in% cluster.samp[,"cluster"],] # Sample all controls from each of the randomly sampled clusters
+    cluster <- aggregate(data.frame(popsize = svypop$cluster), list(cluster = svypop$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
+    cluster$cls.sampprob <- cluster$popsize/Nsvypop # Calculate cluster sampling probability
+    cluster.samp <- cluster[sample(1:nrow(cluster), size = round((svysizenum/mean(table(svypop$cluster)))/1.84,0), prob = cluster$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability; note difficulty in arriving at desired sample size
+    control.samp <- svypop[svypop$cluster %in% cluster.samp[,"cluster"],] # Sample all controls from each of the randomly sampled clusters
     control.samp <- merge(control.samp, cluster.samp, by="cluster") # Merge cluster characteristics with sampled controls
     control.samp$sampweight <- 1/(control.samp$cls.sampprob) # Calculate sampling weight
     control.samp <- subset(control.samp, select = -c(popsize, cls.sampprob)) # Remove unneeded column
@@ -224,10 +271,10 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
   } else if (samp=="clustered2") { # two stage cluster design in which cluster are sampled and individuals are sampled from within selected clusters.
 
-    puma <- aggregate(data.frame(popsize = allcontrols$puma), list(puma = allcontrols$puma), length) # Calculate cluster (i.e. PUMA) population size to determine cluster sampling probability (proportional to cluster population size)
-    puma$cls.sampprob <- puma$popsize/Ncontrols # Calculate cluster sampling probability
+    puma <- aggregate(data.frame(popsize = svypop$puma), list(puma = svypop$puma), length) # Calculate cluster (i.e. PUMA) population size to determine cluster sampling probability (proportional to cluster population size)
+    puma$cls.sampprob <- puma$popsize/Nsvypop # Calculate cluster sampling probability
     puma.samp <- puma[sample(1:nrow(puma), size = ceiling(sqrt(svysizenum)/3), prob = puma$cls.sampprob, replace=F),] # Sample clusters using cluster sampling probability
-    control.samp <- allcontrols[allcontrols$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(ceiling(sqrt(svysizenum)*3))# Randomly sample controls from each of the selected clusters
+    control.samp <- svypop[svypop$puma %in% puma.samp[,"puma"],] %>% group_by(puma) %>% sample_n(ceiling(sqrt(svysizenum)*3))# Randomly sample controls from each of the selected clusters
     control.samp <- merge(control.samp, puma.samp, by="puma") # Merge cluster characteristics with sampled controls
     control.samp$sampprob <- ceiling(sqrt(svysizenum)*3)/control.samp$popsize # Calculate individual within-cluster sampling probability (i.e. 150 divided by cluster population size)    
     control.samp$sampweight <- 1/(control.samp$cls.sampprob*control.samp$sampprob) # Calculate Sampling Weight
@@ -237,13 +284,13 @@ study <- function(iteration, # iteration number for indexing runs and seeds
 
   } else if (samp=="stratified") {    
     
-    allcontrols$strata2 <- as.numeric(cut(allcontrols$county, unique(quantile(allcontrols$county,seq(0,1,.1))), include.lowest=TRUE)) # Split counties into 8 strata
-    stratainfo <- data.frame(table(allcontrols$strata2)) # Create dataframe for strata info for calculating sampling weights later
-    stratainfo$size <- round((stratainfo$Freq/Ncontrols)*(svysizenum)) # Calculate sample size for each strata that is proportional to strata size
+    svypop$strata2 <- as.numeric(cut(svypop$county, unique(quantile(svypop$county,seq(0,1,.1))), include.lowest=TRUE)) # Split counties into 8 strata
+    stratainfo <- data.frame(table(svypop$strata2)) # Create dataframe for strata info for calculating sampling weights later
+    stratainfo$size <- round((stratainfo$Freq/Nsvypop)*(svysizenum)) # Calculate sample size for each strata that is proportional to strata size
     colnames(stratainfo) <- c("strata2", "stratasize", "stratasampsize") # Rename strata data colunms for merging with sampled controls
-    control.samp <- allcontrols[0,] # Create empty data.frame for samples
-    for(i in 1:length(unique(allcontrols$strata2))) { # Sample controls proportional to strata size
-      controls.strata <- allcontrols[allcontrols$strata2==i,]
+    control.samp <- svypop[0,] # Create empty data.frame for samples
+    for(i in 1:length(unique(svypop$strata2))) { # Sample controls proportional to strata size
+      controls.strata <- svypop[svypop$strata2==i,]
       control.samp.strata <- controls.strata[sample(1:nrow(controls.strata), size = stratainfo$stratasampsize[i], replace=F),]   
       control.samp <- rbind(control.samp, control.samp.strata)
     }
@@ -257,20 +304,20 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Age stratified sample. Generating probability of being selected for each control...")
     
-    allcontrols$sampprob[allcontrols$age_18_24==1] <- 1/(sum(allcontrols$age_18_24)/Ncontrols) # Calculate sampling probabilities proportional to inverse of age group frequency (i.e. rarer age groups are sampled more)
-    allcontrols$sampprob[allcontrols$age_25_34==1] <- 1/(sum(allcontrols$age_25_34)/Ncontrols)
-    allcontrols$sampprob[allcontrols$age_35_44==1] <- 1/(sum(allcontrols$age_35_44)/Ncontrols)
-    allcontrols$sampprob[allcontrols$age_45_54==1] <- 1/(sum(allcontrols$age_45_54)/Ncontrols)
-    allcontrols$sampprob[allcontrols$age_55_64==1] <- 1/(sum(allcontrols$age_55_64)/Ncontrols)
-    allcontrols$sampprob[allcontrols$age_over64==1] <- 1/(sum(allcontrols$age_over64)/Ncontrols)
-    allcontrols$sampprob <- allcontrols$sampprob/sum(allcontrols$sampprob) # Scale sampling probabilities to fractions summing to 1
+    svypop$sampprob[svypop$age_18_24==1] <- 1/(sum(svypop$age_18_24)/Nsvypop) # Calculate sampling probabilities proportional to inverse of age group frequency (i.e. rarer age groups are sampled more)
+    svypop$sampprob[svypop$age_25_34==1] <- 1/(sum(svypop$age_25_34)/Nsvypop)
+    svypop$sampprob[svypop$age_35_44==1] <- 1/(sum(svypop$age_35_44)/Nsvypop)
+    svypop$sampprob[svypop$age_45_54==1] <- 1/(sum(svypop$age_45_54)/Nsvypop)
+    svypop$sampprob[svypop$age_55_64==1] <- 1/(sum(svypop$age_55_64)/Nsvypop)
+    svypop$sampprob[svypop$age_over64==1] <- 1/(sum(svypop$age_over64)/Nsvypop)
+    svypop$sampprob <- svypop$sampprob/sum(svypop$sampprob) # Scale sampling probabilities to fractions summing to 1
  
-    print("summary of allcontrols:")
-    print(summary(allcontrols))
+    print("summary of svypop:")
+    print(summary(svypop))
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:Ncontrols, size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- svypop[sample(1:Nsvypop, size = svysizenum, prob = svypop$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -282,7 +329,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     print("Sampling weights created. Removing unneeded columns...") 
     
     control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
-    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    svypop <- subset(svypop, select = -sampprob) # Remove unneeded column 
     
     print("Unneeded columns removed. Proceeding to analysis...")       
     
@@ -290,19 +337,19 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Race stratified sample. Generating probability of being selected for each control...")
     
-    allcontrols$sampprob[allcontrols$white==1] <- 1/(sum(allcontrols$white)/Ncontrols) # Calculate sampling probabilities proportional to inverse of racial group frequency (i.e. rarer racial groups are sampled more)
-    allcontrols$sampprob[allcontrols$black==1] <- 1/(sum(allcontrols$black)/Ncontrols)
-    allcontrols$sampprob[allcontrols$asian==1] <- 1/(sum(allcontrols$asian)/Ncontrols)
-    allcontrols$sampprob[allcontrols$hispanic==1] <- 1/(sum(allcontrols$hispanic)/Ncontrols)
-    allcontrols$sampprob[allcontrols$otherrace==1] <- 1/(sum(allcontrols$otherrace)/Ncontrols)
-    allcontrols$sampprob <- allcontrols$sampprob/sum(allcontrols$sampprob) # Scale sampling probabilities to fractions summing to 1
+    svypop$sampprob[svypop$white==1] <- 1/(sum(svypop$white)/Nsvypop) # Calculate sampling probabilities proportional to inverse of racial group frequency (i.e. rarer racial groups are sampled more)
+    svypop$sampprob[svypop$black==1] <- 1/(sum(svypop$black)/Nsvypop)
+    svypop$sampprob[svypop$asian==1] <- 1/(sum(svypop$asian)/Nsvypop)
+    svypop$sampprob[svypop$hispanic==1] <- 1/(sum(svypop$hispanic)/Nsvypop)
+    svypop$sampprob[svypop$otherrace==1] <- 1/(sum(svypop$otherrace)/Nsvypop)
+    svypop$sampprob <- svypop$sampprob/sum(svypop$sampprob) # Scale sampling probabilities to fractions summing to 1
     
-    print("summary of allcontrols:")
-    print(summary(allcontrols))
+    print("summary of svypop:")
+    print(summary(svypop))
     
     print("Probability of selection generated. Sampling based on this probability...") 
     
-    control.samp <- allcontrols[sample(1:Ncontrols, size = svysizenum, prob = allcontrols$sampprob, replace=F),] # Sample control units
+    control.samp <- svypop[sample(1:Nsvypop, size = svysizenum, prob = svypop$sampprob, replace=F),] # Sample control units
     
     print("summary of control.samp:")
     print(summary(control.samp))
@@ -314,18 +361,19 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     print("Sampling weights created. Removing unneeded columns...") 
     
     control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
-    allcontrols <- subset(allcontrols, select = -sampprob) # Remove unneeded column 
+    svypop <- subset(svypop, select = -sampprob) # Remove unneeded column 
     
     print("Unneeded columns removed. Proceeding to analysis...")       
     
   }
   
-  # Remove allcontrols dataframe - no longer needed
-  rm(allcontrols)
+  # Normalize & Scale Control Sampling Weights to Number of people in underlying survey Population
+  control.samp$sampweight = (control.samp$sampweight/sum(control.samp$sampweight))*(Nsvypop)  
   
-  # Normalize & Scale Control Sampling Weights to Number of Controls in Population
-  control.samp$sampweight = (control.samp$sampweight/sum(control.samp$sampweight))*(Ncontrols)  
-  
+  # Change control sample Y to zero and time to 3652.5 (this is only relevant when svycase=TRUE and cases are included in the survey
+  control.samp$time <- svypop$time[svypop$Y==0][1]  
+  control.samp$Y <- 0
+
   
   ####### PHASE 2: implement case-control - cumulative or density sampled, and analyse the data appropriately
   
@@ -335,7 +383,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
   est <- as.numeric(NA)
   lower <- as.numeric(NA)
   upper <- as.numeric(NA)
-
+  se <- as.numeric(NA)
   
   
   # CUMULATIVE CASE-CONTROL
@@ -413,10 +461,11 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     
     print("Model run successfully. Pulling point estimate and CI...")
     
-    # Pull the main point estimate and CI
+    # Pull the main point estimate and CI and SE
     est <- exp(coef(mod)[2])
     lower <- exp(coef(mod)[2] - 1.96*summary(mod)$coefficients[2,2])
     upper <- exp(coef(mod)[2] + 1.96*summary(mod)$coefficients[2,2])
+    se <- summary(mod)$coefficients[2,2]
     
     print("Pulled point estimate and CI. Returning results...")
     
@@ -456,10 +505,11 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       print("model completed. Storing results...")
       
-      # Pull the main point estimate and CI
+      # Pull the main point estimate and CI and SE
       est <- exp(coef(mod)[1])
       lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
       upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
+      se <- summary(mod)$coefficients[1,3]
       
     } else if (method=="sample") {
       
@@ -488,30 +538,35 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       print("model completed. Storing results...")
       
-      # Pull the main point estimate and CI
+      # Pull the main point estimate and CI and SE
       est <- exp(coef(mod)[1])
       lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
       upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
-
+      se <- summary(mod)$coefficients[1,3]
       
     } else if (method=="model") {
       
-      print("running ccwc with method=='model' (i.e. without regard for sampling weights)")
+      print("risk-set sampling with method=='model' (i.e. without regard for sampling weights)")
       
-      #Combine Cases and Selected Controls
-      presample <- rbind(allcases, control.samp)
+      # Create risk set strata for cases
+      allcases$Set <- 1:Ncases
       
+      # Risk set sample controls (which is equivalent to randomly selecting controls with replacement)
+      rss.controls <- control.samp[sample(1:nrow(control.samp),size=Ncases*ratio,replace=T),]
+      
+      # Create risk set strata for controls
+      rss.controls$Set <- rep(1:Ncases,ratio)
+      
+      # Combine cases and risk-set sample controls to create sample
+      sample <- rbind(allcases, rss.controls)
+      
+      # Create "Fail" Variable
+      sample$Fail <- sample$Y
+
       # Remove allcases dataframe - no longer needed
-      rm(allcases)
+      rm(allcases, rss.controls)
       
-      # Risk Set Sampling
-      try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL,
-                                                  #match=list(), # use this argument for variables we want to match on
-                                                  include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
-                                                               age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                               educ_associates,educ_bachelors,educ_advdegree, sampweight), data=presample, silent=FALSE))
-      
-      print("ccwc complete. Running weighted model...")
+      print("risk set sampling complete. Running weighted model...")
       
       # Run model
       try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
@@ -521,29 +576,35 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       print("model completed. Storing results...")
       
-      # Pull the main point estimate and CI
+      # Pull the main point estimate and CI and SE
       est <- exp(coef(mod)[1])
       lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
       upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
-
+      se <- summary(mod)$coefficients[1,3]
+      
     } else if (method=="unweighted") {
       
-      print("running ccwc with method=='unweighted' (i.e. without regard for sampling weights)")
+      print("risk-set sampling with method=='unweighted' (i.e. without regard for sampling weights)")
       
-      #Combine Cases and Selected Controls
-      presample <- rbind(allcases, control.samp)
+      # Create risk set strata for cases
+      allcases$Set <- 1:Ncases
+      
+      # Risk set sample controls (which is equivalent to randomly selecting controls with replacement)
+      rss.controls <- control.samp[sample(1:nrow(control.samp),size=Ncases*ratio,replace=T),]
+      
+      # Create risk set strata for controls
+      rss.controls$Set <- rep(1:Ncases,ratio)
+      
+      # Combine cases and risk-set sample controls to create sample
+      sample <- rbind(allcases, rss.controls)
+      
+      # Create "Fail" Variable
+      sample$Fail <- sample$Y
       
       # Remove allcases dataframe - no longer needed
-      rm(allcases)
+      rm(allcases, rss.controls)
       
-      # Risk Set Sampling
-      try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, 
-                                                  #match=list(), # use this argument for variables we want to match on
-                                                  include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
-                                                               age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample, silent=FALSE))
-      
-      print("ccwc complete. Running unweighted model...")
+      print("risk set sampling complete. Running unweighted model...")
       
       # Run model
       try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
@@ -553,17 +614,18 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       print("model completed. Storing results...")
       
-      # Pull the main point estimate and CI
+      # Pull the main point estimate and CI and SE
       est <- exp(coef(mod)[1])
       lower <- exp(coef(mod)[1] - 1.96*summary(mod)$coefficients[1,3])
       upper <- exp(coef(mod)[1] + 1.96*summary(mod)$coefficients[1,3])
-
+      se <- summary(mod)$coefficients[1,3]
+      
     }
     
   }
   
   # Return the sampled data, model object, point estimate, and CI
-  return(list(est=est, lower=lower, upper=upper, truth=truth))
+  return(list(est=est, lower=lower, upper=upper, se=se, truth=truth))
 }
 
 # END

@@ -4,14 +4,16 @@
 # DATE STARTED: 2/21/2018
 # PURPOSE: Define a function that will parallelize and run the different case-control simulations
 # UPDATES: 4/24/2018: CR add svysize and method study.r arguments throughout.
+#          11/7/2018: Added svycase argument to funciton, allowing choice of including/excluding
+#                     cases from survey; capture SE as part of results
 ################################################################################################
 
 
 sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 500-1000 for initial, 2000 for final results
                 cluster, # Set to TRUE to run on grizzlybear; set to FALSE to run locally
-                cctype, samp, svysize, method, ratio, exposure, outcome, timevar) {
+                cctype, samp, svysize, svycase, method, ratio, exposure, outcome, timevar) {
   
-  # For testing: nsims <- 3; cluster <- F; cctype <- "cumulative"; samp <- "exp.ps"; svysize <- "small"; method <- "expand"; ratio <- 1; exposure <- "A.50"; outcome <- "Y.02.A.50"; timevar <- "time.Y.02.A.50"
+  # For testing: nsims <- 3; cluster <- F; cctype <- "cumulative"; samp <- "exp.ps"; svysize <- "small"; svycase <- FALSE; method <- "expand"; ratio <- 1; exposure <- "A.50"; outcome <- "Y.02.A.50"; timevar <- "time.Y.02.A.50"
   
   library("parallel") # For setting random seeds
   library("Epi") # for density sampling design
@@ -82,6 +84,7 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     mpi.bcast.Robj2slave(cctype)
     mpi.bcast.Robj2slave(samp)
     mpi.bcast.Robj2slave(svysize)
+    mpi.bcast.Robj2slave(svycase)
     mpi.bcast.Robj2slave(method)
     mpi.bcast.Robj2slave(ratio)
     mpi.bcast.Robj2slave(data)
@@ -93,7 +96,7 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     print("sim.r: running sims...")
     
     # Send the work to the worker nodes and run the simulations
-    results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, svysize=svysize, method=method, ratio=ratio, data=data, 
+    results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, data=data, 
                              exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds)
     
     print("sim.r: sims completed. closing workers...")
@@ -103,11 +106,11 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     print("workers closed. Collapsing results....")
     
   } else { # if not on cluster, run these simulations locally
-    results <- lapply(index, study, cctype=cctype, samp=samp, svysize=svysize, method=method, ratio=ratio, data=data, 
+    results <- lapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, data=data, 
                       exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
   }
   
-  # What comes out of study(): list(est=est, lower=lower, upper=upper, # the point estimate and CI
+  # What comes out of study(): list(est=est, lower=lower, upper=upper, se=se, # the point estimate and CI and SE
   #                                 truth=truth) # the true OR or IDR as relevant
   
   # Print some things, to help debug
@@ -120,8 +123,8 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   print("head of first object to be collapsed:")
   print(head(results[[1]]))
     
-  # Collapse est, lower, and upper results; leave samples and model objects in list form in "results" object
-  est.lower.upper <- do.call(rbind, lapply(index, function(x) results[[x]][c('est','lower','upper','truth')] ))
+  # Collapse est, lower, upper, and se results; leave samples and model objects in list form in "results" object
+  est.lower.upper <- do.call(rbind, lapply(index, function(x) results[[x]][c('est','lower','upper','se','truth')] ))
   
   print("sim.r: Results collapsed. Returning results...")
   

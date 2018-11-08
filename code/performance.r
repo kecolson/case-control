@@ -4,6 +4,7 @@
 # DATE STARTED: 2/21/2018
 # PURPOSE: Script to define a function to calculate performance metrics for the simulations
 # UPDATES: 4/17/2018: CR updated code to save & return performance measures as a dataframe
+#          11/7/2018: CR updated code to capture SE as part of results
 ################################################################################################
 
 performance <- function(sim) {
@@ -44,9 +45,13 @@ performance <- function(sim) {
   MSE <- round(mean((ests$est - truth)^2),10)
   print(paste0("MSE = ",MSE))
   
+  # Calculate mean SE
+  avgse <- round(mean(ests$se),10)
+  print(paste0("Mean standard error = ",avgse))  
+  
   # Save data frame
-  perf <- data.frame(nrow(ests), round(truth,10), round(mean(CIcover, na.rm=T),10), avg, bias, relbias, variance, MSE)
-  names(perf) <- c("nsims", "truth", "cicover", "mean.est", "bias", "relbias", "var", "mse")
+  perf <- data.frame(nrow(ests), round(truth,10), round(mean(CIcover, na.rm=T),10), avg, bias, relbias, variance, MSE, avgse)
+  names(perf) <- c("nsims", "truth", "cicover", "mean.est", "bias", "relbias", "var", "mse", "mean.se")
   return(perf)
 }
 
