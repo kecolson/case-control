@@ -11,6 +11,7 @@
 #          4/24/2018: Updated arguments to include svysize and method
 #          5/1/2018:  ECM minor edits to make code compatible with cluster
 #          11/7/2018: CR added svycase study.r argument throughout
+#          5/22/2019: CR added stratified.bias survey design 
 ################################################################################################
 
 # Clear workspace
@@ -52,6 +53,7 @@ source('code/performance.r')
   # "exp.ps2" for probability sample where exposed have sampling probability of 0.75 and unexposed have sampling probability of 0.25
   # "clustered1" for single stage clustered design
   # "clustered2" for two-stage clustered design 
+  # "stratified.bias" for stratified design with bias
   # "stratified" for single stage stratified design
   # "age.stratified" for age stratified design
   # "race.stratified" for race stratified design

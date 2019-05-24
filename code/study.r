@@ -33,6 +33,7 @@
 #                     exposed controls sampled with probability 0.75, unexposed controls sampled
 #                     with 0.25; added function argument allowing for cases to be included in
 #                     survey; capture SE as part of results
+#          5/24/2019: CR added stratified.bias survey design
 ################################################################################################
 
 ####
@@ -50,6 +51,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                     # "exp.ps2" for probability sample where exposed have sampling probability of 0.75 and unexposed have sampling probability of 0.25
                     # "clustered1" for single stage clustered design
                     # "clustered2" for two-stage clustered design 
+                    # "stratified.bias" for stratified design with bias
                     # "stratified" for single stage stratified design
                     # "age.stratified" for age stratified design
                     # "race.stratified" for race stratified design
@@ -281,6 +283,49 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     control.samp <- subset(control.samp, select = -c(popsize,cls.sampprob, sampprob)) # Remove unneeded columns
     control.samp <- control.samp[sample(1:nrow(control.samp)), ] # Order randomly
     rm(puma,puma.samp) # Remove unneeded objects
+
+  } else if (samp=="stratified.bias") { # two stage stratified design in which individuals are sampled from within strata inversely proportional to size of strata
+    
+    print("Biased stratified sample. Sample equal number of individuals from each strata")
+    
+    # Identify number of individuals to be sampled per strata (balanced across strata)
+    samp.per.strata <- round(svysizenum/length(unique(svypop[[paste0("strata.bias.",exposure)]])))
+    svypop$id <- 1:nrow(svypop) # Create ID variable for all individuals survey pool
+    
+    # Sample equal number of individuals from each strata; note this step just samples IDs
+    control.samp.id <- c()
+    for(i in unique(svypop[[paste0("strata.bias.",exposure)]])){
+      sample <- sample(svypop$id[svypop[[paste0("strata.bias.",exposure)]]==i],size=samp.per.strata,replace=F)
+      control.samp.id <- c(control.samp.id,sample)
+    }
+    
+    print("IDs sampled. Calculate sampling probability for each strata.")
+    
+    # Calculate the sampling probability for individuals, by strata, equal to number of individuals sampled from each strata divided by strata size
+    strata <- data.frame(table(svypop[[paste0("strata.bias.",exposure)]]))
+    strata$sampprob <- samp.per.strata/strata$Freq
+    strata$Freq <- NULL
+    names(strata) <- c(paste0("strata.bias.",exposure),"sampprob")
+
+    
+    
+    print("Sampling probabilities calculated for later merging. Construct sample from sampled IDs") 
+    
+    # Construct sample from previously sampled IDs
+    control.samp <- svypop[svypop$id %in% control.samp.id,] # Sample control units
+    
+    print("Controls sampled. Merging in sampling probabilities and Creating sampling weights....")
+    
+    # Merge in strata-specific sampling probabilities
+    control.samp <- merge(control.samp,strata,by=paste0("strata.bias.",exposure))
+    control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    
+    print("Sampling weights created. Removing unneeded columns...") 
+    
+    control.samp <- subset(control.samp, select = -c(sampprob,id)) # Remove unneeded column  
+    svypop <- subset(svypop, select = -id) # Remove unneeded column 
+    
+    print("Unneeded columns removed. Proceeding to analysis...")      
 
   } else if (samp=="stratified") {    
     

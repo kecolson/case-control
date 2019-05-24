@@ -6,6 +6,8 @@
 # UPDATES: 4/24/2018: CR add svysize and method study.r arguments throughout.
 #          11/7/2018: Added svycase argument to funciton, allowing choice of including/excluding
 #                     cases from survey; capture SE as part of results
+#          5/22/2019: CR made changes to allow for biased stratified survey design (changed
+#                     source population file, retain biased strata variable)
 ################################################################################################
 
 
@@ -30,14 +32,14 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   }
 
   # Bring in data and true parameters
-  data <- read.csv("data/population.data.csv", stringsAsFactors = F)
+  data <- read.csv("data/population.data.append.csv", stringsAsFactors = F)
   
   # Save memory by keeping only variables of interest
   data <- data[,c('cluster','strata','serial','county','city','puma','cpuma0010',
 		  'white','black','asian','hispanic','otherrace','male',
 		  'age_18_24','age_25_34','age_35_44','age_45_54','age_55_64','age_over64',
 		  'educ_lesshs','educ_ged','educ_hs','educ_somecollege','educ_associates',
-		  'educ_bachelors','educ_advdegree',
+		  'educ_bachelors','educ_advdegree',paste0("strata.bias.",exposure),
 		  exposure, outcome, timevar, paste0("trueOR.",outcome),paste0('trueIDR.',outcome) )]
   
   # Sample down the dataset for testing purposes
