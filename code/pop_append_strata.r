@@ -15,9 +15,9 @@ rm(list=ls())
 library(lpSolve)
 
 # Set Working Directory
-setwd("~/Documents/GitHub/case-control") # Chris's Directory
+#setwd("~/Documents/GitHub/case-control") # Chris's Directory
 #setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
-#setwd("C:/Users/Catherine/Documents/GitHub/case-control_master") # Catherine's directory
+setwd("/Users/cxli/Documents/case-control") # Catherine's directory
 
 
 # Import Population Data from local drive (most updated is on GitHub)
