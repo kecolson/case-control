@@ -60,6 +60,8 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                     # "small" 1000 respondents
                     # "medium" 5000 respondents
                     # "large" 15000 respondents
+                    # "xl" 100,000 respondents
+                    # "xxl" 400,000 respondents
                   svycase = FALSE, # Cases are excluded from survey used to obtain controls
                     # TRUE, cases are included in survey used to obtain controls
                   method = "expand", # Method of obtaining controls for when survey size is smaller than number of controls needed
@@ -142,6 +144,10 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     svysizenum <- 5000   
   } else if (svysize=="large") {  
     svysizenum <- 15000   
+  } else if (svysize=="xl") {
+    svysizenum <- 100000
+  } else if (svysize=="xxl") {
+    svysizenum <- 400000
   }
   
   if (svycase==TRUE) { # Determine whether cases should be included or excluded from survey from svycase argument
