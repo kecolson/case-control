@@ -34,6 +34,7 @@
 #                     with 0.25; added function argument allowing for cases to be included in
 #                     survey; capture SE as part of results
 #          5/24/2019: CR added stratified.bias survey design
+#          08//06/2019: Updated exp.ps2 design to explicilty sample 75% exposed and 25% unexposed
 ################################################################################################
 
 ####
@@ -241,30 +242,27 @@ study <- function(iteration, # iteration number for indexing runs and seeds
 
   } else if (samp=="exp.ps2") {  # for probability sample where exposed have sampling probability of 0.75 and unexposed have sampling probability of 0.25
     
-    print("Exposure probability sample. Generating probability of being selected for each control...")
-    
-    svypop$sampprob <- ifelse(svypop$A==1,0.75,0.25)
+    print("Exposure probability sample. Generating number of exposed and unexposed to be sample...")
+    n.exp <- round(0.75*svysizenum)
+    n.unexp <- svysizenum - n.exp
 
-    print("summary of svypop:")
-    print(summary(svypop))
+    print("Numbers to be sampled generated. Sampling based on these numbers...") 
     
-    print("Probability of selection generated. Sampling based on this probability...") 
-    
-    control.samp <- svypop[sample(1:Nsvypop, size = svysizenum, prob = svypop$sampprob, replace=F),] # Sample control units
+    id.exp <- sample(which(svypop$A==1),size=n.exp,replace=F) # Sample exposed rows
+    id.unexp <- sample(which(svypop$A==0),size=n.unexp,replace=F) # Sample unexposed rows
+    control.samp <- svypop[c(id.exp,id.unexp),] # Construct sample
     
     print("summary of control.samp:")
     print(summary(control.samp))
     
-    print("Controls sampled. Creating sampling weights....")
+    print("Controls sampled. Generating sampling weights....")
+    #Note: weights are calculated as pr(A=a in source population)/Pr(A=a in sample)
+    control.samp$sampweight[control.samp$A==1] <- prop.table(table(svypop$A))[2]/prop.table(table(control.samp$A))[2] # Calculate Weights for exposed
+    control.samp$sampweight[control.samp$A==0] <- prop.table(table(svypop$A))[1]/prop.table(table(control.samp$A))[1] # Calculate Weights for unexposed
     
-    control.samp$sampweight <- 1/control.samp$sampprob # Calculate Weights
+    print("Sampling weights created. Proceeding to analysis...") 
     
-    print("Sampling weights created. Removing unneeded columns...") 
-    
-    control.samp <- subset(control.samp, select = -sampprob) # Remove unneeded column  
-    svypop <- subset(svypop, select = -sampprob) # Remove unneeded column 
-    
-    print("Unneeded columns removed. Proceeding to analysis...")       
+    rm(n.exp,n.unexp,id.exp,id.unexp) # Remove unneeded objects      
     
   } else if (samp=="clustered1") { # single state cluster design in which clusters are sampled and all individuals within selected clusters are selected.          
     cluster <- aggregate(data.frame(popsize = svypop$cluster), list(cluster = svypop$cluster), length) # Calculate cluster (i.e. cluster) population size to determine cluster sampling probability (proportional to cluster population size)
