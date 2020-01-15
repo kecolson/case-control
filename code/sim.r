@@ -8,12 +8,13 @@
 #                     cases from survey; capture SE as part of results
 #          5/22/2019: CR made changes to allow for biased stratified survey design (changed
 #                     source population file, retain biased strata variable)
+#          1/9/2020: CR added new matching variables throughout
 ################################################################################################
 
 
 sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 500-1000 for initial, 2000 for final results
                 cluster, # Set to TRUE to run on grizzlybear; set to FALSE to run locally
-                cctype, samp, svysize, svycase, method, ratio, exposure, outcome, timevar) {
+                cctype, samp, svysize, svycase, method, ratio, match_var, exposure, outcome, timevar) {
   
   # For testing: nsims <- 3; cluster <- F; cctype <- "cumulative"; samp <- "exp.ps"; svysize <- "small"; svycase <- FALSE; method <- "expand"; ratio <- 1; exposure <- "A.50"; outcome <- "Y.02.A.50"; timevar <- "time.Y.02.A.50"
   
@@ -26,9 +27,9 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   
   # Set Working Directory
   if (cluster==F) {
-    #setwd("~/Documents/GitHub/case-control")# Chris's directory
+    setwd("~/Documents/PhD/github/case-control")# Chris's directory
     #setwd("C:/Users/kecolson/Google Drive/simulation/case-control-other") # Ellie's directory
-    setwd("/Users/cxli/Documents/case-control") # Catherine's directory
+    #setwd("/Users/cxli/Documents/case-control") # Catherine's directory
   }
 
   # Bring in data and true parameters
@@ -89,16 +90,16 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     mpi.bcast.Robj2slave(svycase)
     mpi.bcast.Robj2slave(method)
     mpi.bcast.Robj2slave(ratio)
+    mpi.bcast.Robj2slave(match_var)
     mpi.bcast.Robj2slave(data)
     mpi.bcast.Robj2slave(exposure)
     mpi.bcast.Robj2slave(outcome)
     mpi.bcast.Robj2slave(timevar)
     mpi.bcast.Robj2slave(seeds)
-    
     print("sim.r: running sims...")
     
     # Send the work to the worker nodes and run the simulations
-    results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, data=data, 
+    results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, match_var=match_var, data=data, 
                              exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds)
     
     print("sim.r: sims completed. closing workers...")
@@ -108,7 +109,7 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     print("workers closed. Collapsing results....")
     
   } else { # if not on cluster, run these simulations locally
-    results <- lapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, data=data, 
+    results <- lapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, match_var=match_var, data=data, 
                       exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
   }
   

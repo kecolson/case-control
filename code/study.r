@@ -35,6 +35,7 @@
 #                     survey; capture SE as part of results
 #          5/24/2019: CR added stratified.bias survey design
 #          08//06/2019: Updated exp.ps2 design to explicilty sample 75% exposed and 25% unexposed
+#          01/09/2020: CR added matching functionality to density-expand analysis
 ################################################################################################
 
 ####
@@ -71,12 +72,12 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                     # "model"  weights are incoporated into the model
                     # "unweighted"  weights from survey are not considered at all
                   ratio = 1, # ratio of controls to cases
+                  match_var = NULL, #risk-set sampling matching variables input as character (e.g. "race", or "list(race, age, sex, educ)")
                   data, # argument to provide the population data. Population data will take the format of the pop data we've created. 
                   exposure, # name of exposure variable
                   outcome,  # name of outcome variable
                   timevar,   # name of the time variable corresponding to the given outcome frequency
                   seeds # rigorously produced random seeds
-                   # any other options here TBD
 ) {
   
   print(paste0("Running iteration number ",iteration))
@@ -535,24 +536,136 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       # Expand Sample Using Individual Person Weights
       presample.expnd <- presample[rep(row.names(presample),round(presample$sampweight,0)),]
       
-      print("Expansion complete. Running ccwc...")
-      
       # Risk Set Sampling
-      try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL,
-                                                  #match=list(), # use this argument for variables we want to match on
-                                                  include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
-                                                               age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
-                                                               educ_associates,educ_bachelors,educ_advdegree), data=presample.expnd, silent=FALSE))
+
+        # without matching (default)
+        if (is.null(match_var)==TRUE) { # checking for the presence of the match_var argument
+        
+          # Risk-set sampling   
+          print("Expansion complete. Running unmatched ccwc...")
+          
+          try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL,
+                                                      include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
+                                                                   age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
+                                                                   educ_associates,educ_bachelors,educ_advdegree), data=presample.expnd, silent=FALSE))
+          
+          print("unmatched ccwc complete. Running unweighted model...")
+          
+          # Run model
+          try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                              male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                              strata(Set),
+                            data = sample, method = "efron"))
+          
+          print("model completed. Storing results...")
+        
+        # with matching    
+        } else if (is.null(match_var)==FALSE) { # checking for the presence of the match_var argument
+          
+            # recreate categorical variables for matching (ccwc requires these as input)
+          
+              # race
+              presample.expnd$race <- 0
+              presample.expnd$race[presample.expnd$black==1] <- 1
+              presample.expnd$race[presample.expnd$asian==1] <- 2 
+              presample.expnd$race[presample.expnd$hispanic==1] <- 3
+              presample.expnd$race[presample.expnd$otherrace==1] <- 4
+              presample.expnd$race <- as.factor(presample.expnd$race)
+              levels(presample.expnd$race) <- c("white", "black", "asian", "hispanic", "otherrace")
+
+              # age
+              presample.expnd$age <- 0
+              presample.expnd$age[presample.expnd$age_25_34==1] <- 1
+              presample.expnd$age[presample.expnd$age_35_44==1] <- 2 
+              presample.expnd$age[presample.expnd$age_45_54==1] <- 3
+              presample.expnd$age[presample.expnd$age_55_64==1] <- 4
+              presample.expnd$age[presample.expnd$age_over64==1] <- 5
+              presample.expnd$age <- as.factor(presample.expnd$age)
+              levels(presample.expnd$age) <- c("age_18_24", "age_25_34", "age_35_44", "age_45_54", "age_55_64", "age_over64")
+              
+              # sex
+              presample.expnd$sex <- presample.expnd$male
+              presample.expnd$sex <- as.factor(presample.expnd$male)
+              levels(presample.expnd$sex) <- c("female", "male")
+              
+              # education 
+              presample.expnd$educ <- 0
+              presample.expnd$educ[presample.expnd$educ_ged==1] <- 1
+              presample.expnd$educ[presample.expnd$educ_hs==1] <- 2 
+              presample.expnd$educ[presample.expnd$educ_somecollege==1] <- 3
+              presample.expnd$educ[presample.expnd$educ_associates==1] <- 4
+              presample.expnd$educ[presample.expnd$educ_bachelors==1] <- 5
+              presample.expnd$educ[presample.expnd$educ_advdegree==1] <- 6
+              presample.expnd$educ <- as.factor(presample.expnd$educ)
+              levels(presample.expnd$educ) <- c("educ_lesshs", "educ_ged", "educ_hs", "educ_somecollege", "educ_associates", "educ_bachelors", "educ_advdegree")              
+            
+            # risk-set sampling 
+            print("Expansion complete. Running matched ccwc...")
+            
+            try(sample <- ccwc.weights(entry=0, exit=time, fail=Y, origin=0, controls=ratio, weights=NULL, 
+                                       match = match_var,
+                                       include=list(A,black,asian,hispanic,otherrace,age_25_34,age_35_44,
+                                                    age_45_54,age_55_64,age_over64,male,educ_ged,educ_hs,educ_somecollege,
+                                                    educ_associates,educ_bachelors,educ_advdegree), data=presample.expnd, silent=FALSE))
+            
+            print("proof it matched appropriately:")
+            print("Race:")
+            print(table(sample$Fail, sample$black))
+            print(table(sample$Fail, sample$asian))
+            print(table(sample$Fail, sample$hispanic))
+            print(table(sample$Fail, sample$otherrace))
+            print("Age:")
+            print(table(sample$Fail, sample$age_25_34))
+            print(table(sample$Fail, sample$age_35_44))
+            print(table(sample$Fail, sample$age_45_54))
+            print(table(sample$Fail, sample$age_55_64))     
+            print(table(sample$Fail, sample$age_over64))           
+            print("Sex:")
+            print(table(sample$Fail, sample$male))           
+            print("Education:")
+            print(table(sample$Fail, sample$educ_ged))
+            print(table(sample$Fail, sample$educ_hs))
+            print(table(sample$Fail, sample$educ_somecollege))
+            print(table(sample$Fail, sample$educ_associates))     
+            print(table(sample$Fail, sample$educ_bachelors))             
+            print(table(sample$Fail, sample$educ_advdegree))             
+            
+            print("matched ccwc complete. Running unweighted model...")
+              
+            # define all covariates for regression formula
+            covariates <- c("A", "black", "asian", "hispanic", "otherrace", "age_25_34", "age_35_44", "age_45_54", "age_55_64", 
+                                "age_over64", "male", "educ_ged", "educ_hs", "educ_somecollege", "educ_associates", "educ_bachelors",
+                                "educ_advdegree","strata(Set)")
+              
+              # update covariates to remove matching variables
+              if (grepl("race",match_var)==TRUE) {
+                covariates <- covariates[!covariates %in% c("black", "asian", "hispanic", "otherrace")]
+              } 
+        
+              if (grepl("age",match_var)==TRUE) {
+                covariates <- covariates[!covariates %in% c("age_25_34", "age_35_44", "age_45_54", "age_55_64", "age_over64")]
+              } 
+        
+              if (grepl("sex",match_var)==TRUE) {
+                covariates <- covariates[!covariates %in% c("male")]
+              }  
+        
+              if (grepl("educ",match_var)==TRUE) {
+                covariates <- covariates[!covariates %in% c("educ_ged", "educ_hs", "educ_somecollege", "educ_associates", "educ_bachelors", "educ_advdegree")]                
+              }
+                  
+            # generate regression formula
+            reg_formula = as.formula(paste0("Fail ~ ", paste(covariates, collapse = " + ")))
+            print(paste0("matched regression formula generated: ", paste0("Fail ~ ", paste(covariates, collapse = " + "))))
+                  
+              # Run model
+              try(mod <- clogit(formula = reg_formula, data = sample, method = "efron"))
+
+              print(summary(mod))
+              print("model completed. Storing results...")
+          
+        }
       
-      print("ccwc complete. Running unweighted model...")
-      
-      # Run model
-      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
-                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
-                          strata(Set),
-                        data = sample, method = "efron"))
-      
-      print("model completed. Storing results...")
       
       # Pull the main point estimate and CI and SE
       est <- exp(coef(mod)[1])

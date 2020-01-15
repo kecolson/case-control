@@ -36,6 +36,9 @@ ccwc.weights <-function(entry=0, # time of entry to follow up
   t.entry <- as.numeric(entry - origin)
   t.exit <- as.numeric(exit - origin)
   # match= argument
+  if(is.character(match)){ # added to change match= argument input to be character class
+    match <- parse(text = match, keep.source=FALSE)[[1]]
+  }
   marg <- substitute(match)
   if (mode(marg)=="name") {
     match <- list(eval(marg, data))
@@ -44,8 +47,8 @@ ccwc.weights <-function(entry=0, # time of entry to follow up
   else if (mode(marg)=="call" && marg[[1]]=="list") {
     mnames <- names(marg)
     nm <- length(marg)
-    if (!is.null(mnames)) {
-      if (nm>1) {
+    if (nm>1) { # note: switched this if statement rule with the rule below to fix bug in ccwc
+      if (!is.null(mnames)) { # note: switched this if statement rule with the rule above to fix bug in ccwc
         for (i in 2:nm) {
           if (mode(marg[[i]])=="name")
             mnames[i] <- as.character(marg[[i]])
