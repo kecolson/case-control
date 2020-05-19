@@ -1,4 +1,5 @@
-
+data/population.data.strongconfounder.csv
+data/population.data.strongconfounder.append.csv
 data/population.data.csv
 data/trueIDR.csv
 data/trueOR.csv

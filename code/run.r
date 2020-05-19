@@ -71,7 +71,7 @@ source('code/performance.r')
   # "sample" sample from controls with replacement and with sampling probability proportional to weights
 # match_var (NOTE: Only relevant for cctype = "density" and method = "expand")
   # input should be either a single variable (match_var =  "race"), or multiple (match_var = "list(race, educ, age, sex)")
-  # always a character class object
+  # always a character class object, if no matching is desired, set match_var = NULL
 
 sim1 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="srs", svysize="benchmark", svycase=FALSE, method="sample", ratio=4, match_var = NULL, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
 save(sim1, file = "results/cumulative_SRS_bm_ratio4_A50_Y02_1000sims.rdata")
