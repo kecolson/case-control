@@ -1,3 +1,7 @@
+data/singleconfounder.crudeIDR.csv
+data/singleconfounder.trueIDR.csv
+data/population.data.singleconfounder.csv
+data/population.data.singleconfounder.append.csv
 data/population.data.strongconfounder.csv
 data/population.data.strongconfounder.append.csv
 data/population.data.csv

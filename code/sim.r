@@ -9,12 +9,14 @@
 #          5/22/2019: CR made changes to allow for biased stratified survey design (changed
 #                     source population file, retain biased strata variable)
 #          1/9/2020: CR added new matching variables throughout
+#          5/19/2090: CR added argument to specify population (standard, strong_c, single_c)
+#                     and pass argument to workers
 ################################################################################################
 
 
 sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 500-1000 for initial, 2000 for final results
                 cluster, # Set to TRUE to run on grizzlybear; set to FALSE to run locally
-                cctype, samp, svysize, svycase, method, ratio, match_var, exposure, outcome, timevar) {
+                cctype, samp, svysize, svycase, method, ratio, match_var, exposure, outcome, timevar, population) {
   
   # For testing: nsims <- 3; cluster <- F; cctype <- "cumulative"; samp <- "exp.ps"; svysize <- "small"; svycase <- FALSE; method <- "expand"; ratio <- 1; exposure <- "A.50"; outcome <- "Y.02.A.50"; timevar <- "time.Y.02.A.50"
   
@@ -33,7 +35,15 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
   }
 
   # Bring in data and true parameters
-  data <- read.csv("data/population.data.append.csv", stringsAsFactors = F)
+  if(population == "standard"){
+    data <- read.csv("data/population.data.append.csv", stringsAsFactors = F)
+  }
+  if(population == "strong_c"){
+    data <- read.csv("data/population.data.strongconfounder.append.csv", stringsAsFactors = F)
+  }
+  if(population == "single_c"){
+    data <- read.csv("data/population.data.singleconfounder.append.csv", stringsAsFactors = F)
+  }
   
   # Save memory by keeping only variables of interest
   data <- data[,c('cluster','strata','serial','county','city','puma','cpuma0010',
@@ -95,12 +105,13 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     mpi.bcast.Robj2slave(exposure)
     mpi.bcast.Robj2slave(outcome)
     mpi.bcast.Robj2slave(timevar)
+    mpi.bcast.Robj2slave(population)
     mpi.bcast.Robj2slave(seeds)
     print("sim.r: running sims...")
     
     # Send the work to the worker nodes and run the simulations
     results <- mpi.parLapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, match_var=match_var, data=data, 
-                             exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds)
+                             exposure=exposure, outcome=outcome, timevar=timevar, population=population, seeds=seeds)
     
     print("sim.r: sims completed. closing workers...")
     
@@ -110,7 +121,7 @@ sim <- function(nsims, # Number of simulations to run. Probably 3 for testing, 5
     
   } else { # if not on cluster, run these simulations locally
     results <- lapply(index, study, cctype=cctype, samp=samp, svysize=svysize, svycase=svycase, method=method, ratio=ratio, match_var=match_var, data=data, 
-                      exposure=exposure, outcome=outcome, timevar=timevar, seeds=seeds) 
+                      exposure=exposure, outcome=outcome, timevar=timevar, population=population, seeds=seeds) 
   }
   
   # What comes out of study(): list(est=est, lower=lower, upper=upper, se=se, # the point estimate and CI and SE

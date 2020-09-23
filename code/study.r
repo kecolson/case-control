@@ -36,6 +36,8 @@
 #          5/24/2019: CR added stratified.bias survey design
 #          08//06/2019: Updated exp.ps2 design to explicilty sample 75% exposed and 25% unexposed
 #          01/09/2020: CR added matching functionality to density-expand analysis
+#          05/19/2020: CR added code to adapt to different populations (particularly the population
+#                       with only a single confounder: "single_c")
 ################################################################################################
 
 ####
@@ -77,6 +79,7 @@ study <- function(iteration, # iteration number for indexing runs and seeds
                   exposure, # name of exposure variable
                   outcome,  # name of outcome variable
                   timevar,   # name of the time variable corresponding to the given outcome frequency
+                  population, # population under study ("standard", "strong_c", "single_c")
                   seeds # rigorously produced random seeds
 ) {
   
@@ -501,10 +504,17 @@ study <- function(iteration, # iteration number for indexing runs and seeds
     print("Summary of data to be input to model:")
     print(summary(sample))
     
-    # Run model
-    mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male +
-                 educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree,
-               data=sample, family='binomial', weights = sampweight)
+    # Run model (specification appropriate to population under study)
+    if(population == "standard" | population == "strong_c"){
+      mod <- glm(Y ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 + male +
+                   educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree,
+                 data=sample, family='binomial', weights = sampweight)
+    }
+    
+    if(population == "single_c"){
+      mod <- glm(Y ~ A +  male,
+                 data=sample, family='binomial', weights = sampweight)
+    }    
     
     print("Summary and coef of model:")
     print(summary(mod))
@@ -551,11 +561,18 @@ study <- function(iteration, # iteration number for indexing runs and seeds
           
           print("unmatched ccwc complete. Running unweighted model...")
           
-          # Run model
-          try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
-                              male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
-                              strata(Set),
-                            data = sample, method = "efron"))
+          # Run model (specification appropriate to population under study)
+          if(population == "standard" | population == "strong_c"){
+            try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                                male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                                strata(Set),
+                              data = sample, method = "efron"))
+          }
+          
+          if(population == "single_c"){
+            try(mod <- clogit(Fail ~ A + male + strata(Set),
+                              data = sample, method = "efron"))
+          }     
           
           print("model completed. Storing results...")
         
@@ -633,10 +650,16 @@ study <- function(iteration, # iteration number for indexing runs and seeds
             print("matched ccwc complete. Running unweighted model...")
               
             # define all covariates for regression formula
-            covariates <- c("A", "black", "asian", "hispanic", "otherrace", "age_25_34", "age_35_44", "age_45_54", "age_55_64", 
-                                "age_over64", "male", "educ_ged", "educ_hs", "educ_somecollege", "educ_associates", "educ_bachelors",
-                                "educ_advdegree","strata(Set)")
-              
+            if(population == "standard" | population == "strong_c"){
+                covariates <- c("A", "black", "asian", "hispanic", "otherrace", "age_25_34", "age_35_44", "age_45_54", "age_55_64", 
+                              "age_over64", "male", "educ_ged", "educ_hs", "educ_somecollege", "educ_associates", "educ_bachelors",
+                              "educ_advdegree","strata(Set)")
+            }
+            
+            if(population == "single_c"){
+              covariates <- c("A", "male", "strata(Set)")
+            }
+            
               # update covariates to remove matching variables
               if (grepl("race",match_var)==TRUE) {
                 covariates <- covariates[!covariates %in% c("black", "asian", "hispanic", "otherrace")]
@@ -657,7 +680,8 @@ study <- function(iteration, # iteration number for indexing runs and seeds
             # generate regression formula
             reg_formula = as.formula(paste0("Fail ~ ", paste(covariates, collapse = " + ")))
             print(paste0("matched regression formula generated: ", paste0("Fail ~ ", paste(covariates, collapse = " + "))))
-                  
+          
+        
               # Run model
               try(mod <- clogit(formula = reg_formula, data = sample, method = "efron"))
 
@@ -692,11 +716,18 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       print("ccwc complete. Running unweighted model...")
       
-      # Run model
-      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
-                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
-                          strata(Set),
-                        data = sample, method = "efron"))
+      # Run model (specification appropriate to population under study)
+      if(population == "standard" | population == "strong_c"){
+        try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                            male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                            strata(Set),
+                          data = sample, method = "efron"))
+      }
+      
+      if(population == "single_c"){
+        try(mod <- clogit(Fail ~ A + male + strata(Set),
+                          data = sample, method = "efron"))
+      }   
       
       print("model completed. Storing results...")
       
@@ -730,11 +761,18 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       print("risk set sampling complete. Running weighted model...")
       
-      # Run model
-      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
-                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
-                          strata(Set), weights = sampweight,
-                        data = sample, method = "efron"))
+      # Run model (specification appropriate to population under study)
+      if(population == "standard" | population == "strong_c"){
+        try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                            male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                            strata(Set), weights = sampweight,
+                          data = sample, method = "efron"))
+      }
+      
+      if(population == "single_c"){
+        try(mod <- clogit(Fail ~ A + male + strata(Set), weights = sampweight,
+                          data = sample, method = "efron"))
+      }
       
       print("model completed. Storing results...")
       
@@ -768,11 +806,18 @@ study <- function(iteration, # iteration number for indexing runs and seeds
       
       print("risk set sampling complete. Running unweighted model...")
       
-      # Run model
-      try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
-                          male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
-                          strata(Set),
-                        data = sample, method = "efron"))
+      # Run model (specification appropriate to population under study)
+      if(population == "standard" | population == "strong_c"){
+        try(mod <- clogit(Fail ~ A + black + asian + hispanic + otherrace + age_25_34 + age_35_44 + age_45_54 + age_55_64 + age_over64 +
+                            male + educ_ged + educ_hs + educ_somecollege + educ_associates + educ_bachelors + educ_advdegree + 
+                            strata(Set),
+                          data = sample, method = "efron"))
+      }
+      
+      if(population == "single_c"){
+        try(mod <- clogit(Fail ~ A + male + strata(Set),
+                          data = sample, method = "efron"))
+      }    
       
       print("model completed. Storing results...")
       

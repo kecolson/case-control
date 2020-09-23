@@ -13,6 +13,7 @@
 #          11/7/2018: CR added svycase study.r argument throughout
 #          5/22/2019: CR added stratified.bias survey design 
 #          1/13/2020: CR added matching functionality
+#          5/19/2020: Added population argument ("standard", "strong_c", "single_c")
 ################################################################################################
 
 # Clear workspace
@@ -72,28 +73,39 @@ source('code/performance.r')
 # match_var (NOTE: Only relevant for cctype = "density" and method = "expand")
   # input should be either a single variable (match_var =  "race"), or multiple (match_var = "list(race, educ, age, sex)")
   # always a character class object, if no matching is desired, set match_var = NULL
+# population: 
+  # "standard" original population generated for case-control simulations, multiple weak confounders
+  # "strong_c" modified population generated for matching scenarios, contains multiple weak confounders and one very strong confounder (sex)
+  # "single_c" modified population generated for matching scenarios, contains single strong confounder (sex)
 
-sim1 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="srs", svysize="benchmark", svycase=FALSE, method="sample", ratio=4, match_var = NULL, exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+
+
+sim1 <- sim(nsims=1, cluster=F, cctype="density", samp="srs", svysize="benchmark", svycase=FALSE, method="expand", ratio=4, 
+            match_var = "sex", exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50", population = "single_c")
 save(sim1, file = "results/cumulative_SRS_bm_ratio4_A50_Y02_1000sims.rdata")
 perf1 <- performance(sim1)
 write.csv(perf1, "results/perf_cumulative_SRS_bm_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim2 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="sps", svysize="benchmark", svycase=FALSE, method="sample", ratio=4, match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+sim2 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="sps", svysize="benchmark", svycase=FALSE, method="sample", ratio=4, 
+            match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50", population = "standard")
 save(sim2, file = "results/cumulative_SPS_bm_ratio4_A50_Y02_1000sims.rdata")
 perf2 <- performance(sim2)
 write.csv(perf2, "results/perf_cumulative_SPS_bm_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim3 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered1", svysize="benchmark", svycase=FALSE, method="sample", ratio=4, match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+sim3 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered1", svysize="benchmark", svycase=FALSE, method="sample", ratio=4,
+            match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50", population = "standard")
 save(sim3, file = "results/cumulative_clustered1_bm_ratio4_A50_Y02_1000sims.rdata")
 perf3 <- performance(sim3)
 write.csv(perf3, "results/perf_cumulative_clustered1_bm_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim4 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered2", svysize="benchmark", svycase=FALSE, method="sample", ratio=4, match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+sim4 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="clustered2", svysize="benchmark", svycase=FALSE, method="sample", ratio=4, 
+            match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50", population = "standard")
 save(sim4, file = "results/cumulative_clustered2_bm_ratio4_A50_Y02_1000sims.rdata")
 perf4 <- performance(sim4)
 write.csv(perf4, "results/perf_cumulative_clustered2_ratio4_A50_Y02_1000sims.csv", row.names=F)
 
-sim5 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="stratified", svysize="small", svycase=FALSE, method="sample", ratio=4, match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50")
+sim5 <- sim(nsims=1000, cluster=T, cctype="cumulative", samp="stratified", svysize="small", svycase=FALSE, method="sample", ratio=4, 
+            match_var = NULL,  exposure="A.50", outcome="Y.02.A.50", timevar="time.Y.02.A.50", population = "standard")
 save(sim5, file = "results/cumulative_stratified_bm_ratio4_A50_Y02_1000sims.rdata")
 perf5 <- performance(sim5)
 write.csv(perf5, "results/perf_cumulative_stratified_bm_ratio4_A50_Y02_1000sims.csv", row.names=F)
